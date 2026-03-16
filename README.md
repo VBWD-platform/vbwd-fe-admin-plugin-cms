@@ -6,9 +6,16 @@ Full CMS management in the admin backoffice.
 
 Provides admin UI for the CMS plugin: pages CRUD with TipTap rich-text editor, category management, image gallery with upload/resize, widget/layout/style management.
 
-## Backend Counterpart
+---
 
-`vbwd-backend/plugins/cms/`
+## Related
+
+| | Repository |
+|-|------------|
+| 🖥 Backend | [vbwd-plugin-cms](https://github.com/VBWD-platform/vbwd-plugin-cms) |
+| 👤 Frontend (user) | [vbwd-fe-user-plugin-cms](https://github.com/VBWD-platform/vbwd-fe-user-plugin-cms) |
+
+**Core:** [vbwd-fe-admin](https://github.com/VBWD-platform/vbwd-fe-admin) · [vbwd-fe-core](https://github.com/VBWD-platform/vbwd-fe-core)
 
 ## Routes / Views
 
