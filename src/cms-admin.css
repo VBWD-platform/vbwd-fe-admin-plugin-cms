@@ -1,0 +1,29 @@
+/* CMS Admin Plugin — shared view wrapper */
+.cms-view {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+/* ── Shared widget-editor utilities ─────────────────────────────────────────
+   Used by CmsWidgetEditor.vue and all descriptor tab components
+   (CmsBreadcrumbEditorTab, NativePricingPlansEditorTab, ContactFormEditorTab).
+   Must be global (non-scoped) so child components can inherit them.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.field-group { margin-bottom: 1rem; }
+.field-label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: #374151; }
+.field-input { width: 100%; padding: 0.45rem 0.75rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.9rem; box-sizing: border-box; }
+.field-input--mono { font-family: monospace; }
+.field-input--sm { font-size: 0.8rem; padding: 0.3rem 0.5rem; }
+
+.editor-pane__hint { margin-top: 0.5rem; font-size: 0.78rem; color: #6b7280; }
+.editor-pane__hint code { background: #f3f4f6; border-radius: 3px; padding: 0 3px; font-family: monospace; }
+
+.btn { padding: 0.45rem 1rem; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; cursor: pointer; font-size: 0.875rem; text-decoration: none; display: inline-block; }
+.btn--ghost  { color: #374151; display: inline-flex; align-items: center; }
+.btn--primary { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.btn--danger  { background: #ef4444; color: #fff; border-color: #ef4444; }
+.btn--sm { font-size: 0.8rem; padding: 0.35rem 0.65rem; }
+.btn--xs { font-size: 0.75rem; padding: 0.2rem 0.5rem; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }

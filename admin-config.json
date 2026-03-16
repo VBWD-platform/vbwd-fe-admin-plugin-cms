@@ -1,0 +1,44 @@
+{
+  "tabs": [
+    {
+      "id": "general",
+      "label": "General",
+      "fields": [
+        {
+          "key": "defaultLanguage",
+          "label": "Default Language",
+          "component": "input",
+          "inputType": "text"
+        },
+        {
+          "key": "defaultRobots",
+          "label": "Default Robots Meta",
+          "component": "input",
+          "inputType": "text"
+        }
+      ]
+    },
+    {
+      "id": "uploads",
+      "label": "Uploads",
+      "fields": [
+        {
+          "key": "uploadsMaxSizeMb",
+          "label": "Max Upload Size (MB)",
+          "component": "input",
+          "inputType": "number",
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "imagesPerPage",
+          "label": "Images Per Page",
+          "component": "input",
+          "inputType": "number",
+          "min": 10,
+          "max": 200
+        }
+      ]
+    }
+  ]
+}

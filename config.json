@@ -1,0 +1,22 @@
+{
+  "defaultLanguage": {
+    "type": "string",
+    "default": "en",
+    "description": "Default language pre-selected when creating a new page"
+  },
+  "defaultRobots": {
+    "type": "string",
+    "default": "index,follow",
+    "description": "Default robots meta value for new pages"
+  },
+  "uploadsMaxSizeMb": {
+    "type": "number",
+    "default": 10,
+    "description": "Maximum allowed upload file size in megabytes"
+  },
+  "imagesPerPage": {
+    "type": "number",
+    "default": 30,
+    "description": "Number of images per page in the image gallery"
+  }
+}
