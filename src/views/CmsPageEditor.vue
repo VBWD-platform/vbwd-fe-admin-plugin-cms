@@ -3,6 +3,15 @@
     <div class="page-editor__header">
       <h2>{{ isNew ? $t('cms.newPage') : $t('cms.editPage') }}</h2>
       <div class="page-editor__actions">
+        <a
+          v-if="!isNew && form.slug"
+          :href="pageUrl"
+          target="_blank"
+          class="btn btn--ghost page-editor__view-link"
+          :title="form.is_published ? 'View published page' : 'Preview (unpublished)'"
+        >
+          {{ form.is_published ? 'View Page ↗' : 'Preview ↗' }}
+        </a>
         <router-link
           :to="{ name: 'cms-admin-pages' }"
           class="btn btn--ghost"
@@ -64,65 +73,85 @@
           >
         </div>
 
-        <!-- Content tabs -->
-        <div class="tabs">
-          <button
-            v-for="tab in tabs"
-            :key="tab"
-            type="button"
-            :class="['tab-btn', { active: activeTab === tab }]"
-            @click="onPageTabChange(tab)"
-          >
-            {{ tab }}
-          </button>
-        </div>
-
-        <!-- WYSIWYG tab -->
-        <div v-show="activeTab === 'WYSIWYG'">
-          <TipTapEditor
-            ref="editorRef"
-            v-model="form.content_json"
-            v-model:html-value="form.content_html"
-            hide-tab-bar
-            @open-image-picker="imagePickerOpen = true"
-          />
-        </div>
-
-        <!-- HTML tab -->
-        <div v-show="activeTab === 'HTML'">
-          <CodeMirrorEditor
-            v-model="form.content_html"
-            lang="html"
-            min-height="380px"
-          />
-        </div>
-
-        <!-- CSS tab -->
-        <div v-show="activeTab === 'CSS'">
-          <CodeMirrorEditor
-            v-model="form.source_css"
-            lang="css"
-            min-height="380px"
-          />
-          <p class="tab-hint">
-            Page-specific styles injected with this page's content.
-          </p>
-        </div>
-
-        <!-- Preview tab -->
-        <div v-show="activeTab === 'Preview'">
-          <iframe
-            ref="pagePreviewFrame"
-            class="page-preview-iframe"
-            sandbox="allow-same-origin allow-scripts"
-          />
-        </div>
-
-        <!-- SEO tab -->
+        <!-- Content Block Editors — one per content area in layout, or single default -->
         <div
-          v-show="activeTab === 'SEO'"
-          class="seo-tab"
+          v-for="(block, blockIndex) in editableBlocks"
+          :key="block.areaName"
+          class="content-block-section"
         >
+          <h3
+            v-if="editableBlocks.length > 1"
+            class="content-block-section__title"
+          >
+            {{ block.label }}
+          </h3>
+
+          <!-- Tabs for this block -->
+          <div class="tabs">
+            <button
+              v-for="tab in blockTabs"
+              :key="`${block.areaName}-${tab}`"
+              type="button"
+              :class="['tab-btn', { active: activeBlockTabs[block.areaName] === tab }]"
+              @click="activeBlockTabs[block.areaName] = tab"
+            >
+              {{ tab }}
+            </button>
+          </div>
+
+          <!-- WYSIWYG -->
+          <div v-show="activeBlockTabs[block.areaName] === 'WYSIWYG'">
+            <TipTapEditor
+              :ref="(el: any) => { if (el && blockIndex === 0) editorRef = el }"
+              v-model="block.content_json"
+              v-model:html-value="block.content_html"
+              hide-tab-bar
+              @open-image-picker="activeImageBlock = block.areaName; imagePickerOpen = true"
+            />
+          </div>
+
+          <!-- HTML -->
+          <div v-show="activeBlockTabs[block.areaName] === 'HTML'">
+            <CodeMirrorEditor
+              v-model="block.content_html"
+              lang="html"
+              min-height="380px"
+            />
+          </div>
+
+          <!-- CSS -->
+          <div v-show="activeBlockTabs[block.areaName] === 'CSS'">
+            <CodeMirrorEditor
+              v-model="block.source_css"
+              lang="css"
+              min-height="380px"
+            />
+          </div>
+
+          <!-- Preview -->
+          <div v-show="activeBlockTabs[block.areaName] === 'Preview'">
+            <iframe
+              v-if="blockIndex === 0"
+              ref="pagePreviewFrame"
+              class="page-preview-iframe"
+              sandbox="allow-same-origin allow-scripts"
+            />
+            <div
+              v-else
+              class="block-preview"
+            >
+              <!-- eslint-disable-next-line vue/no-v-html -->
+              <div v-html="block.content_html" />
+            </div>
+          </div>
+        </div>
+
+        <!-- SEO Section (collapsible) -->
+        <details class="seo-section">
+          <summary class="seo-section__toggle">
+            SEO Settings
+          </summary>
+          <div class="seo-tab">
           <div class="field-group">
             <label class="field-label">{{ $t('cms.metaTitle') }}</label>
             <input
@@ -201,7 +230,8 @@
               class="field-error"
             >{{ schemaError }}</span>
           </div>
-        </div>
+          </div>
+        </details>
       </div>
 
       <!-- Sidebar -->
@@ -319,7 +349,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
 import TipTapEditor from '../components/TipTapEditor.vue';
@@ -332,9 +362,76 @@ const store = useCmsAdminStore();
 
 const id = computed(() => route.params.id as string | undefined);
 const isNew = computed(() => !id.value);
+const feUserBaseUrl = window.location.port === '8081' ? 'http://localhost:8080' : window.location.origin.replace(':8081', ':8080');
+const previewToken = ref('');
+const pageUrl = computed(() => {
+  if (!form.value.slug) return '';
+  if (form.value.is_published) return `${feUserBaseUrl}/${form.value.slug}`;
+  return previewToken.value
+    ? `${feUserBaseUrl}/${form.value.slug}?preview_token=${previewToken.value}`
+    : '';
+});
 
-const tabs = ['WYSIWYG', 'HTML', 'CSS', 'SEO', 'Preview'];
-const activeTab = ref('WYSIWYG');
+const blockTabs = ['WYSIWYG', 'HTML', 'CSS', 'Preview'];
+
+// Editable content blocks — one per "content" area in layout, or single default
+interface EditableBlock {
+  areaName: string;
+  label: string;
+  content_json: Record<string, unknown>;
+  content_html: string;
+  source_css: string;
+}
+
+const editableBlocks = ref<EditableBlock[]>([
+  { areaName: 'content', label: 'Content', content_json: { type: 'doc', content: [] }, content_html: '', source_css: '' },
+]);
+
+const activeBlockTabs = ref<Record<string, string>>({});
+const activeImageBlock = ref('content');
+
+// Detect "content" type areas in selected layout and rebuild editable blocks
+function rebuildBlocks() {
+  const layouts = store.layouts?.items ?? [];
+  const layout = layouts.find((l: Record<string, unknown>) => l.id === form.value.layout_id);
+  const contentAreas = layout?.areas
+    ? (layout.areas as Array<{ name: string; type: string; label: string }>).filter((a) => a.type === 'content')
+    : [];
+
+  if (contentAreas.length === 0) {
+    // No layout or no content areas — single default block
+    if (editableBlocks.value.length !== 1 || editableBlocks.value[0].areaName !== 'content') {
+      editableBlocks.value = [{
+        areaName: 'content',
+        label: 'Content',
+        content_json: form.value.content_json,
+        content_html: form.value.content_html,
+        source_css: form.value.source_css,
+      }];
+    }
+  } else {
+    // One block per content area
+    editableBlocks.value = contentAreas.map((area) => {
+      const existing = editableBlocks.value.find((b) => b.areaName === area.name);
+      return existing || {
+        areaName: area.name,
+        label: area.label || area.name,
+        content_json: { type: 'doc', content: [] },
+        content_html: '',
+        source_css: '',
+      };
+    });
+  }
+
+  // Ensure active tabs are set
+  for (const block of editableBlocks.value) {
+    if (!activeBlockTabs.value[block.areaName]) {
+      activeBlockTabs.value[block.areaName] = 'WYSIWYG';
+    }
+  }
+}
+
+// Watches are registered after form declaration (see below)
 const imagePickerOpen = ref(false);
 const editorRef = ref<InstanceType<typeof TipTapEditor> | null>(null);
 const pagePreviewFrame = ref<HTMLIFrameElement | null>(null);
@@ -389,6 +486,20 @@ const form = ref<PageForm>({
   schema_json: null,
 });
 
+// Watch layout changes to rebuild content blocks
+watch(() => form.value.layout_id, rebuildBlocks);
+
+// Update preview when switching to Preview tab
+watch(activeBlockTabs, async (tabs) => {
+  for (const [, tab] of Object.entries(tabs)) {
+    if (tab === 'Preview') {
+      await nextTick();
+      updatePagePreview();
+      break;
+    }
+  }
+}, { deep: true });
+
 function slugify(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
@@ -409,16 +520,6 @@ function updatePagePreview() {
   doc.close();
 }
 
-async function onPageTabChange(tab: string) {
-  if (tab === 'WYSIWYG' && activeTab.value === 'HTML') {
-    editorRef.value?.setFromHtml(form.value.content_html);
-  }
-  activeTab.value = tab;
-  if (tab === 'Preview') {
-    await nextTick();
-    updatePagePreview();
-  }
-}
 
 function parseSchemaJson() {
   schemaError.value = '';
@@ -438,6 +539,27 @@ async function save(publish?: boolean) {
   if (!payload.layout_id) payload.layout_id = null;
   if (!payload.style_id) payload.style_id = null;
   if (id.value) payload.id = id.value;
+
+  // Sync editable blocks back to payload
+  if (editableBlocks.value.length === 1 && editableBlocks.value[0].areaName === 'content') {
+    // Single default block — save as main page content (backward compat)
+    const block = editableBlocks.value[0];
+    payload.content_json = block.content_json;
+    payload.content_html = block.content_html;
+    payload.source_css = block.source_css;
+  } else {
+    // Multi-block — save as content_blocks
+    const blocks: Record<string, { content_json: Record<string, unknown>; content_html: string; source_css: string }> = {};
+    for (const block of editableBlocks.value) {
+      blocks[block.areaName] = {
+        content_json: block.content_json,
+        content_html: block.content_html,
+        source_css: block.source_css,
+      };
+    }
+    payload.content_blocks = blocks;
+  }
+
   const saved = await store.savePage(payload as any);
   if (saved && isNew.value) {
     router.replace({ name: 'cms-page-edit', params: { id: saved.id } });
@@ -487,6 +609,33 @@ onMounted(async () => {
         schema_json: p.schema_json ?? null,
       };
       schemaJsonText.value = p.schema_json ? JSON.stringify(p.schema_json, null, 2) : '';
+      previewToken.value = (p as any).preview_token ?? '';
+
+      // Build content blocks from layout areas + saved data
+      rebuildBlocks();
+
+      // Load saved content blocks into editable blocks
+      const savedBlocks = (p as Record<string, unknown>).content_blocks as Record<string, { content_json?: Record<string, unknown>; content_html?: string; source_css?: string }> | undefined;
+      if (savedBlocks) {
+        for (const block of editableBlocks.value) {
+          const saved = savedBlocks[block.areaName];
+          if (saved) {
+            block.content_json = saved.content_json || { type: 'doc', content: [] };
+            block.content_html = saved.content_html || '';
+            block.source_css = saved.source_css || '';
+          }
+        }
+      }
+
+      // For backward compat: if only a default "content" block, populate from page's main content
+      if (editableBlocks.value.length === 1 && editableBlocks.value[0].areaName === 'content') {
+        const block = editableBlocks.value[0];
+        if (!block.content_html && form.value.content_html) {
+          block.content_json = form.value.content_json;
+          block.content_html = form.value.content_html;
+          block.source_css = form.value.source_css;
+        }
+      }
     }
   }
 });
@@ -511,6 +660,7 @@ textarea.field-input { resize: vertical; }
 .tab-btn { padding: 0.5rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-size: 0.9rem; color: #6b7280; }
 .tab-btn.active { color: #1d4ed8; border-bottom-color: #1d4ed8; font-weight: 600; }
 
+.page-editor__view-link { color: #3b82f6; font-size: 0.85rem; }
 .seo-tab { padding-top: 1rem; }
 .tab-hint { font-size: 0.78rem; color: #6b7280; margin-top: 0.5rem; }
 .page-preview-iframe { width: 100%; height: 500px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; }
@@ -521,4 +671,13 @@ textarea.field-input { resize: vertical; }
 .btn--primary { background: #3b82f6; color: #fff; border-color: #3b82f6; }
 .btn--warn { background: #f59e0b; color: #fff; border-color: #f59e0b; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Content block sections */
+.content-block-section { margin-bottom: 24px; }
+.content-block-section__title { font-size: 0.9rem; font-weight: 600; color: #374151; margin: 0 0 8px; padding: 10px 0 6px; border-top: 1px solid #e5e7eb; text-transform: uppercase; letter-spacing: 0.5px; }
+.block-preview { border: 1px solid #d1d5db; border-radius: 4px; padding: 20px; background: #fff; min-height: 200px; }
+
+/* SEO collapsible */
+.seo-section { margin-top: 20px; }
+.seo-section__toggle { cursor: pointer; font-size: 0.9rem; font-weight: 600; color: #374151; padding: 10px 0; border-top: 1px solid #e5e7eb; }
 </style>

@@ -2,12 +2,27 @@
   <div class="cms-view cms-pages-view">
     <div class="view-header">
       <h2>{{ $t('cms.pages') }}</h2>
-      <router-link
-        :to="{ name: 'cms-page-new' }"
-        class="create-btn"
-      >
-        + {{ $t('cms.newPage') }}
-      </router-link>
+      <div class="view-header__actions">
+        <button
+          class="btn"
+          @click="importInput?.click()"
+        >
+          Import
+        </button>
+        <input
+          ref="importInput"
+          type="file"
+          accept=".json"
+          style="display:none"
+          @change="onImport"
+        >
+        <router-link
+          :to="{ name: 'cms-page-new' }"
+          class="create-btn"
+        >
+          + {{ $t('cms.newPage') }}
+        </router-link>
+      </div>
     </div>
 
     <!-- Filters -->
@@ -91,6 +106,12 @@
       class="bulk-actions"
     >
       <span class="selection-info">{{ $t('common.selected', { count: store.selectedPageIds.size }) }}</span>
+      <button
+        class="bulk-btn"
+        @click="exportSelected"
+      >
+        Export selected
+      </button>
       <button
         class="bulk-btn activate"
         @click="bulkAction('publish')"
@@ -330,9 +351,27 @@ async function deletePage(id: string) {
   await store.deletePage(id);
 }
 
+const importInput = ref<HTMLInputElement | null>(null);
+
 async function bulkAction(action: string) {
   if (!confirm(`${action} ${store.selectedPageIds.size} page(s)?`)) return;
   await store.bulkAction([...store.selectedPageIds], action);
+}
+
+async function exportSelected() {
+  await store.exportPages([...store.selectedPageIds]);
+}
+
+async function onImport(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  try {
+    await store.importPages(file);
+  } catch (err: unknown) {
+    alert((err as Error)?.message ?? 'Import failed');
+  } finally {
+    (e.target as HTMLInputElement).value = '';
+  }
 }
 
 onMounted(() => {
@@ -353,6 +392,11 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+.view-header__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .view-header h2 {

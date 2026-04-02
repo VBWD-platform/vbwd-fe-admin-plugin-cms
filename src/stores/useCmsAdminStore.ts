@@ -253,6 +253,16 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       await this.fetchPages();
     },
 
+    async exportPages(ids: string[]) {
+      await _downloadExport('/admin/cms/pages/export', ids.length === 1 ? 'cms-page.json' : 'cms-pages.json', ids);
+    },
+
+    async importPages(file: File) {
+      const payload = JSON.parse(await file.text());
+      await api.post<any>('/admin/cms/pages/import', payload);
+      await this.fetchPages();
+    },
+
     // ── Images ────────────────────────────────────────────────────────────────
 
     async fetchImages(params: Record<string, unknown> = {}) {

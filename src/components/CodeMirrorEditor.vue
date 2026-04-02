@@ -55,9 +55,11 @@ onMounted(() => {
         EditorView.updateListener.of((upd) => {
           if (upd.docChanged) emit('update:modelValue', view!.state.doc.toString());
         }),
+        EditorView.lineWrapping,
         EditorView.theme({
-          '&': { minHeight: props.minHeight ?? '260px' },
-          '.cm-scroller': { fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, monospace", overflowX: 'auto' },
+          '&': { minHeight: props.minHeight ?? '260px', maxWidth: '100%' },
+          '.cm-scroller': { fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, monospace", overflow: 'auto' },
+          '.cm-content': { whiteSpace: 'pre-wrap', wordBreak: 'break-all' },
         }),
       ],
     }),
