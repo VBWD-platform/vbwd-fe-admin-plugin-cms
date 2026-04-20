@@ -314,9 +314,25 @@
                 :key="s.id"
                 :value="s.id"
               >
-                {{ s.name }}
+                {{ s.name }}{{ s.is_default ? ' (default)' : '' }}
               </option>
             </select>
+            <p
+              v-if="!form.style_id && defaultStyle"
+              class="hint"
+              data-testid="page-default-style-hint"
+            >
+              No style selected — this page will render with the default style
+              <strong>{{ defaultStyle.name }}</strong>.
+            </p>
+            <p
+              v-else-if="!form.style_id"
+              class="hint"
+              data-testid="page-no-default-hint"
+            >
+              No style selected and no default configured — the theme-switcher
+              will render this page.
+            </p>
           </div>
           <div class="field-group">
             <label class="field-label">
@@ -604,6 +620,12 @@ const store = useCmsAdminStore();
 
 const id = computed(() => route.params.id as string | undefined);
 const isNew = computed(() => !id.value);
+
+// Surface the default style (if any) next to the style dropdown so the admin
+// knows what a "— none —" selection will resolve to at render time.
+const defaultStyle = computed(() =>
+  (store.styles?.items ?? []).find((s: any) => s.is_default),
+);
 const feUserBaseUrl = window.location.port === '8081' ? 'http://localhost:8080' : window.location.origin.replace(':8081', ':8080');
 const previewToken = ref('');
 const pageUrl = computed(() => {

@@ -82,6 +82,7 @@
           >
             Active
           </th>
+          <th>Default</th>
           <th
             class="sortable"
             @click="sort('updated_at')"
@@ -109,11 +110,24 @@
           </td>
           <td>{{ style.slug }}</td>
           <td>{{ style.is_active ? 'Yes' : 'No' }}</td>
+          <td @click.stop>
+            <span
+              v-if="style.is_default"
+              class="badge badge--default"
+              data-testid="style-default-badge"
+            >Default</span>
+            <button
+              v-else-if="canManage"
+              class="btn btn--sm"
+              data-testid="style-make-default-btn"
+              @click="setDefault(style.id)"
+            >Make default</button>
+          </td>
           <td>{{ fmtDate(style.updated_at) }}</td>
         </tr>
         <tr v-if="!items.length && !store.loading">
           <td
-            colspan="5"
+            colspan="6"
             class="cms-table__empty"
           >
             No styles yet.
@@ -175,6 +189,10 @@ function sort(col: string) {
   if (sortBy.value === col) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
   else { sortBy.value = col; sortDir.value = 'asc'; }
   fetch();
+}
+
+async function setDefault(id: string) {
+  await store.setDefaultStyle(id);
 }
 
 function toggleAll() {

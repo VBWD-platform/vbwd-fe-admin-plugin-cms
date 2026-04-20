@@ -512,6 +512,17 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       await this.fetchStyles();
     },
 
+    // ── default-style management (sprint 26) ───────────────────────────────
+    async setDefaultStyle(id: string) {
+      await api.post<any>(`/admin/cms/styles/${id}/default`);
+      await this.fetchStyles();
+    },
+
+    async clearDefaultStyle() {
+      await api.delete<any>('/admin/cms/styles/default');
+      await this.fetchStyles();
+    },
+
     // ── CMS Import / Export ──────────────────────────────────────────────────
 
     async exportCms(sections: string[]): Promise<void> {

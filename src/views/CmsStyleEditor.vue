@@ -74,6 +74,36 @@
             >
           </label>
         </div>
+        <div
+          v-if="!isNew"
+          class="field-group default-section"
+        >
+          <label class="field-label">Default style</label>
+          <div v-if="form.is_default">
+            <span
+              class="badge badge--default"
+              data-testid="style-is-default-badge"
+            >This is the current default</span>
+            <button
+              v-if="canManage"
+              class="btn"
+              data-testid="clear-default-btn"
+              style="margin-left:0.75rem"
+              @click="onClearDefault"
+            >Clear default</button>
+          </div>
+          <div v-else>
+            <button
+              v-if="canManage"
+              class="btn btn--primary"
+              data-testid="set-default-btn"
+              @click="onSetDefault"
+            >Set as default</button>
+            <p class="hint">
+              Any page without an explicit style falls back to the default.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div class="style-editor__panels">
@@ -122,6 +152,7 @@ const form = ref({
   source_css: '',
   sort_order: 0,
   is_active: true,
+  is_default: false,
 });
 
 function slugify(text: string) {
@@ -164,6 +195,17 @@ async function remove() {
   router.push('/admin/cms/styles');
 }
 
+async function onSetDefault() {
+  if (!id) return;
+  await store.setDefaultStyle(id);
+  form.value.is_default = true;
+}
+
+async function onClearDefault() {
+  await store.clearDefaultStyle();
+  form.value.is_default = false;
+}
+
 onMounted(async () => {
   if (!isNew) {
     await store.fetchStyle(id!);
@@ -175,6 +217,7 @@ onMounted(async () => {
         source_css: s.source_css,
         sort_order: s.sort_order,
         is_active: s.is_active,
+        is_default: (s as any).is_default === true,
       };
     }
   }
