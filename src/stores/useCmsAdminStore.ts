@@ -111,6 +111,7 @@ export interface CmsStyle {
   source_css: string;
   sort_order: number;
   is_active: boolean;
+  is_default: boolean;
   updated_at: string;
 }
 
