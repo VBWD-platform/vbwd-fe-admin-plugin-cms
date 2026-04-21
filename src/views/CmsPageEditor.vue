@@ -654,8 +654,35 @@ const editableBlocks = ref<EditableBlock[]>([
 const activeBlockTabs = ref<Record<string, string>>({});
 const activeImageBlock = ref('content');
 
+// Archive of per-area content kept across layout changes so switching a page
+// from e.g. no-layout → "home-v1" doesn't silently drop the user's WYSIWYG
+// / HTML / CSS work. Indexed by areaName.
+interface BlockContent {
+  content_json: Record<string, unknown>;
+  content_html: string;
+  source_css: string;
+}
+const blockArchive = ref<Record<string, BlockContent>>({});
+
+function _isEmptyBlock(b: BlockContent | undefined): boolean {
+  if (!b) return true;
+  const html = (b.content_html ?? '').trim();
+  const css = (b.source_css ?? '').trim();
+  const jsonContent = (b.content_json as { content?: unknown[] } | undefined)?.content ?? [];
+  return html === '' && css === '' && (!Array.isArray(jsonContent) || jsonContent.length === 0);
+}
+
 // Detect "content" type areas in selected layout and rebuild editable blocks
 function rebuildBlocks() {
+  // 1. Archive whatever's currently editable so nothing the user typed is lost.
+  for (const block of editableBlocks.value) {
+    blockArchive.value[block.areaName] = {
+      content_json: block.content_json,
+      content_html: block.content_html,
+      source_css: block.source_css,
+    };
+  }
+
   const layouts = store.layouts?.items ?? [];
   const layout = layouts.find((l: Record<string, unknown>) => l.id === form.value.layout_id);
   const contentAreas = layout?.areas
@@ -663,31 +690,43 @@ function rebuildBlocks() {
     : [];
 
   if (contentAreas.length === 0) {
-    // No layout or no content areas — single default block
-    if (editableBlocks.value.length !== 1 || editableBlocks.value[0].areaName !== 'content') {
-      editableBlocks.value = [{
-        areaName: 'content',
-        label: 'Content',
-        content_json: form.value.content_json,
-        content_html: form.value.content_html,
-        source_css: form.value.source_css,
-      }];
-    }
+    // No layout or no content areas — single default block.
+    // Prefer any archived 'content' block; else any non-empty archived block;
+    // else the form's content_* fields (backward-compat with old single-block pages).
+    const archiveContent = blockArchive.value['content'];
+    const fallback = Object.values(blockArchive.value).find((b) => !_isEmptyBlock(b));
+    const src = !_isEmptyBlock(archiveContent) ? archiveContent : fallback;
+    editableBlocks.value = [{
+      areaName: 'content',
+      label: 'Content',
+      content_json: src?.content_json ?? form.value.content_json,
+      content_html: src?.content_html ?? form.value.content_html,
+      source_css: src?.source_css ?? form.value.source_css,
+    }];
   } else {
-    // One block per content area
-    editableBlocks.value = contentAreas.map((area) => {
-      const existing = editableBlocks.value.find((b) => b.areaName === area.name);
-      return existing || {
+    // One block per content area.
+    editableBlocks.value = contentAreas.map((area, idx) => {
+      let src = blockArchive.value[area.name];
+      // Migration heuristic: when switching FROM a single-block layout (or
+      // no-layout) TO a multi-area layout, carry the old default 'content'
+      // over into the first new area so users don't lose their work.
+      if (_isEmptyBlock(src) && idx === 0) {
+        const fromDefault = blockArchive.value['content'];
+        if (!_isEmptyBlock(fromDefault)) {
+          src = fromDefault;
+        }
+      }
+      return {
         areaName: area.name,
         label: area.label || area.name,
-        content_json: { type: 'doc', content: [] },
-        content_html: '',
-        source_css: '',
+        content_json: src?.content_json ?? { type: 'doc', content: [] },
+        content_html: src?.content_html ?? '',
+        source_css: src?.source_css ?? '',
       };
     });
   }
 
-  // Ensure active tabs are set
+  // Ensure active tabs are set (doesn't clobber user's current tab selection).
   for (const block of editableBlocks.value) {
     if (!activeBlockTabs.value[block.areaName]) {
       activeBlockTabs.value[block.areaName] = 'WYSIWYG';
