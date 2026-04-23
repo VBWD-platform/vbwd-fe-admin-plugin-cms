@@ -121,7 +121,9 @@
               class="btn btn--sm"
               data-testid="style-make-default-btn"
               @click="setDefault(style.id)"
-            >Make default</button>
+            >
+              Make default
+            </button>
           </td>
           <td>{{ fmtDate(style.updated_at) }}</td>
         </tr>

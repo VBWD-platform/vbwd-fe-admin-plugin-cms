@@ -90,7 +90,9 @@
               data-testid="clear-default-btn"
               style="margin-left:0.75rem"
               @click="onClearDefault"
-            >Clear default</button>
+            >
+              Clear default
+            </button>
           </div>
           <div v-else>
             <button
@@ -98,7 +100,9 @@
               class="btn btn--primary"
               data-testid="set-default-btn"
               @click="onSetDefault"
-            >Set as default</button>
+            >
+              Set as default
+            </button>
             <p class="hint">
               Any page without an explicit style falls back to the default.
             </p>
