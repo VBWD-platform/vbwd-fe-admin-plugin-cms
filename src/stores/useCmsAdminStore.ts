@@ -507,10 +507,25 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       await _downloadExport('/admin/cms/styles/export', ids.length === 1 ? 'cms-style.json' : 'cms-styles.zip', ids);
     },
 
-    async importStyle(file: File) {
-      const payload = JSON.parse(await file.text());
-      await api.post<any>('/admin/cms/styles/import', payload);
+    async importStyle(
+      file: File,
+      mode: 'replace' | 'copy' = 'copy',
+    ): Promise<{ imported?: number; skipped?: number; failed?: number; errors?: { file: string; error: string }[] }> {
+      const isZip = /\.zip$/i.test(file.name) || file.type === 'application/zip';
+      let result: any;
+      if (isZip) {
+        const body = await file.arrayBuffer();
+        result = await api.post<any>(
+          `/admin/cms/styles/import?mode=${mode}`,
+          body,
+          { headers: { 'Content-Type': 'application/zip' } },
+        );
+      } else {
+        const payload = JSON.parse(await file.text());
+        result = await api.post<any>(`/admin/cms/styles/import?mode=${mode}`, payload);
+      }
       await this.fetchStyles();
+      return result ?? {};
     },
 
     // ── default-style management (sprint 26) ───────────────────────────────
