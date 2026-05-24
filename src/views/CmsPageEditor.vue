@@ -100,17 +100,10 @@
             </button>
           </div>
 
-          <!-- WYSIWYG -->
-          <div v-show="activeBlockTabs[block.areaName] === 'WYSIWYG'">
-            <TipTapEditor
-              :ref="(el: any) => { if (el && blockIndex === 0) editorRef = el }"
-              v-model="block.content_json"
-              v-model:html-value="block.content_html"
-              hide-tab-bar
-              @open-image-picker="activeImageBlock = block.areaName; imagePickerOpen = true"
-            />
-          </div>
-
+          <!-- HTML (raw) is the only content editor. The WYSIWYG (TipTap)
+               was removed: it could not represent the hand-authored marketing
+               markup (<section>, vbwd-* cards/grids/stats) and silently
+               flattened it to bare paragraphs on save. -->
           <!-- HTML -->
           <div v-show="activeBlockTabs[block.areaName] === 'HTML'">
             <CodeMirrorEditor
@@ -491,13 +484,6 @@
       @select="onPageWidgetSelected"
       @close="pageWidgetPickerArea = null"
     />
-
-    <!-- Image picker modal -->
-    <CmsImagePicker
-      v-if="imagePickerOpen"
-      @select="onImageSelected"
-      @close="imagePickerOpen = false"
-    />
   </div>
 </template>
 
@@ -608,9 +594,7 @@ function removePageWidgetLevel(areaName: string, levelId: string) {
     (id: string) => id !== levelId
   );
 }
-import TipTapEditor from '../components/TipTapEditor.vue';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
-import CmsImagePicker from '../components/CmsImagePicker.vue';
 import CmsWidgetPicker from '../components/CmsWidgetPicker.vue';
 import type { CmsLayoutWidgetAssignment, CmsWidget } from '../stores/useCmsAdminStore';
 
@@ -636,7 +620,8 @@ const pageUrl = computed(() => {
     : '';
 });
 
-const blockTabs = ['WYSIWYG', 'HTML', 'CSS', 'Preview'];
+// WYSIWYG removed — content is edited as raw HTML only (no flattening).
+const blockTabs = ['HTML', 'CSS', 'Preview'];
 
 // Editable content blocks — one per "content" area in layout, or single default
 interface EditableBlock {
@@ -652,7 +637,6 @@ const editableBlocks = ref<EditableBlock[]>([
 ]);
 
 const activeBlockTabs = ref<Record<string, string>>({});
-const activeImageBlock = ref('content');
 
 // Archive of per-area content kept across layout changes so switching a page
 // from e.g. no-layout → "home-v1" doesn't silently drop the user's WYSIWYG
@@ -729,14 +713,12 @@ function rebuildBlocks() {
   // Ensure active tabs are set (doesn't clobber user's current tab selection).
   for (const block of editableBlocks.value) {
     if (!activeBlockTabs.value[block.areaName]) {
-      activeBlockTabs.value[block.areaName] = 'WYSIWYG';
+      activeBlockTabs.value[block.areaName] = 'HTML';
     }
   }
 }
 
 // Watches are registered after form declaration (see below)
-const imagePickerOpen = ref(false);
-const editorRef = ref<InstanceType<typeof TipTapEditor> | null>(null);
 const pagePreviewFrame = ref<HTMLIFrameElement | null>(null);
 const schemaJsonText = ref('');
 const schemaError = ref('');
@@ -846,8 +828,10 @@ async function save(publish?: boolean) {
   if (id.value) payload.id = id.value;
 
   // Sync editable blocks back to payload
-  if (editableBlocks.value.length === 1 && editableBlocks.value[0].areaName === 'content') {
-    // Single default block — save as main page content (backward compat)
+  if (editableBlocks.value.length === 1) {
+    // Single content area (any name) → save as the page's main content.
+    // content_html is the source of truth; with the WYSIWYG gone it is the
+    // raw HTML the admin typed and is never flattened.
     const block = editableBlocks.value[0];
     payload.content_json = block.content_json;
     payload.content_html = block.content_html;
@@ -879,11 +863,6 @@ async function save(publish?: boolean) {
 
 async function togglePublish() {
   await save(!form.value.is_published);
-}
-
-function onImageSelected(url: string, alt: string) {
-  editorRef.value?.insertImageUrl(url, alt);
-  imagePickerOpen.value = false;
 }
 
 onMounted(async () => {
@@ -949,13 +928,22 @@ onMounted(async () => {
         }
       }
 
-      // For backward compat: if only a default "content" block, populate from page's main content
-      if (editableBlocks.value.length === 1 && editableBlocks.value[0].areaName === 'content') {
+      // Single content area (whatever it is named): surface the page's stored
+      // content so the HTML tab shows it. Previously this only fired when the
+      // area was named literally "content", so layouts whose content area is
+      // e.g. "main" (Content Page layout) opened blank — hiding the real
+      // content_html from the admin and risking an empty overwrite.
+      if (editableBlocks.value.length === 1) {
         const block = editableBlocks.value[0];
-        if (!block.content_html && form.value.content_html) {
-          block.content_json = form.value.content_json;
-          block.content_html = form.value.content_html;
-          block.source_css = form.value.source_css;
+        const formBlock = {
+          content_json: form.value.content_json,
+          content_html: form.value.content_html,
+          source_css: form.value.source_css,
+        };
+        if (_isEmptyBlock(block) && !_isEmptyBlock(formBlock)) {
+          block.content_json = formBlock.content_json;
+          block.content_html = formBlock.content_html;
+          block.source_css = formBlock.source_css;
         }
       }
     }
