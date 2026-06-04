@@ -31,17 +31,32 @@
             Vue Component
           </option>
         </select>
+        <label
+          v-if="canManage"
+          class="cms-list__import-mode"
+          :title="'On slug conflict: replace = overwrite existing; copy = save as new (-2, -3 …)'"
+        >
+          <select v-model="importMode">
+            <option value="replace">
+              Replace existing
+            </option>
+            <option value="copy">
+              Save as copy
+            </option>
+          </select>
+        </label>
         <button
           v-if="canManage"
           class="btn"
+          :title="'Upload a single .json widget or a .zip of many'"
           @click="importInput?.click()"
         >
-          Import
+          Import (.json / .zip)
         </button>
         <input
           ref="importInput"
           type="file"
-          accept=".json"
+          accept=".json,.zip"
           style="display:none"
           @change="onImport"
         >
@@ -196,6 +211,7 @@ import { useCmsAdminStore } from '../stores/useCmsAdminStore';
 import { useAuthStore } from '@/stores/auth';
 
 const importInput = ref<HTMLInputElement | null>(null);
+const importMode = ref<'replace' | 'copy'>('replace');
 
 const store = useCmsAdminStore();
 const authStore = useAuthStore();
@@ -255,7 +271,16 @@ async function onImport(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
   try {
-    await store.importWidget(file);
+    const result = await store.importWidget(file, importMode.value);
+    if (typeof result?.imported === 'number') {
+      const parts = [`${result.imported} imported`];
+      if (result.skipped) parts.push(`${result.skipped} skipped`);
+      if (result.failed) parts.push(`${result.failed} failed`);
+      const detail = result.failed && result.errors
+        ? '\n\n' + result.errors.map(er => `• ${er.file}: ${er.error}`).join('\n')
+        : '';
+      alert(parts.join(', ') + detail);
+    }
   } catch (err: any) {
     alert(err?.message ?? 'Import failed');
   } finally {
@@ -278,6 +303,7 @@ onMounted(fetch);
 .cms-list__search { padding: 8px 12px; border: 1px solid var(--admin-input-border, #ddd); border-radius: 4px; font-size: 14px; width: 200px; background: var(--admin-card-bg, #fff); color: var(--admin-text, #333); }
 .cms-list__search:focus { outline: none; border-color: var(--admin-focus, #3498db); }
 .cms-list__filter { padding: 8px 10px; border: 1px solid var(--admin-input-border, #ddd); border-radius: 4px; font-size: 14px; background: var(--admin-card-bg, #fff); color: var(--admin-text, #333); }
+.cms-list__import-mode select { padding: 8px 10px; border: 1px solid var(--admin-input-border, #ddd); border-radius: 4px; font-size: 13px; background: var(--admin-card-bg, #fff); color: var(--admin-text, #333); }
 
 /* ── Bulk bar ─────────────────────────────────────────────────────────────── */
 .cms-list__bulk-bar { display: flex; align-items: center; gap: 10px; background: var(--admin-bulk-bg, #f0f4f8); border-left: 4px solid var(--admin-bulk-accent, #3498db); padding: 10px 16px; border-radius: 4px; margin-bottom: 16px; flex-wrap: wrap; }

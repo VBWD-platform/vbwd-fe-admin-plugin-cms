@@ -24,8 +24,9 @@ const NAV_SECTIONS = [
     id: 'cms',
     label: 'CMS',
     items: [
+      { label: 'Posts', to: '/admin/cms/posts', requiredPermission: 'cms.manage' },
+      { label: 'Taxonomy', to: '/admin/cms/taxonomy', requiredPermission: 'cms.manage' },
       { label: 'Pages', to: '/admin/cms/pages', requiredPermission: 'cms.pages.view' },
-      { label: 'Categories', to: '/admin/cms/categories', requiredPermission: 'cms.pages.view' },
       { label: 'Images', to: '/admin/cms/images', requiredPermission: 'cms.images.view' },
       { label: 'Layouts', to: '/admin/cms/layouts', requiredPermission: 'cms.layouts.manage' },
       { label: 'Widgets', to: '/admin/cms/widgets', requiredPermission: 'cms.widgets.view' },
@@ -56,30 +57,39 @@ export const cmsAdminPlugin: IPlugin = {
     extensionRegistry.register('cms-admin', { navSections: NAV_SECTIONS });
 
     // Register admin routes (added as children of the 'admin' layout route)
-    // Pages
+    // Unified type-aware authoring (S47.6) — additive alongside the legacy
+    // page editor; both coexist during the cutover.
+    sdk.addRoute({
+      path: 'cms/posts',
+      name: 'cms-posts',
+      component: () => import('./src/views/PostList.vue'),
+      meta: { requiredPermission: 'cms.manage' },
+    });
+    sdk.addRoute({
+      path: 'cms/posts/new',
+      name: 'cms-post-new',
+      component: () => import('./src/views/PostEditor.vue'),
+      meta: { requiredPermission: 'cms.manage' },
+    });
+    sdk.addRoute({
+      path: 'cms/posts/:id/edit',
+      name: 'cms-post-edit',
+      component: () => import('./src/views/PostEditor.vue'),
+      meta: { requiredPermission: 'cms.manage' },
+    });
+    sdk.addRoute({
+      path: 'cms/taxonomy',
+      name: 'cms-taxonomy',
+      component: () => import('./src/views/TermManager.vue'),
+      meta: { requiredPermission: 'cms.manage' },
+    });
+    // Pages — the list shows unified posts of type=page and opens the unified
+    // PostEditor for create/edit (the legacy page editor + categories admin
+    // have been retired in favour of the unified content engine + taxonomy).
     sdk.addRoute({
       path: 'cms/pages',
       name: 'cms-admin-pages',
       component: () => import('./src/views/CmsPageList.vue'),
-      meta: { requiredPermission: 'cms.pages.view' },
-    });
-    sdk.addRoute({
-      path: 'cms/pages/new',
-      name: 'cms-page-new',
-      component: () => import('./src/views/CmsPageEditor.vue'),
-      meta: { requiredPermission: 'cms.pages.manage' },
-    });
-    sdk.addRoute({
-      path: 'cms/pages/:id/edit',
-      name: 'cms-page-edit',
-      component: () => import('./src/views/CmsPageEditor.vue'),
-      meta: { requiredPermission: 'cms.pages.view' },
-    });
-    // Categories
-    sdk.addRoute({
-      path: 'cms/categories',
-      name: 'cms-categories',
-      component: () => import('./src/views/CmsCategoryList.vue'),
       meta: { requiredPermission: 'cms.pages.view' },
     });
     // Images

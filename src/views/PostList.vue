@@ -1,6 +1,6 @@
 <template>
-  <!-- Pages list = the shared content list scoped to type="page". -->
-  <CmsContentList type="page" />
+  <!-- Posts list = the shared content list scoped to type="post". -->
+  <CmsContentList type="post" />
 </template>
 
 <script setup lang="ts">

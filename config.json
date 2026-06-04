@@ -1,4 +1,9 @@
 {
+  "debug_mode": {
+    "type": "boolean",
+    "default": false,
+    "description": "Enable verbose CMS admin debug logging"
+  },
   "defaultLanguage": {
     "type": "string",
     "default": "en",

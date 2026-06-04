@@ -308,6 +308,11 @@ defineExpose({ insertImageUrl, setFromHtml });
   min-height: 200px;
   outline: none;
 }
+/* Keep inserted images inside the editor — never render at natural size. */
+.tiptap-content :deep(.ProseMirror img) {
+  max-width: 100%;
+  height: auto;
+}
 .tiptap-content :deep(.ProseMirror p.is-editor-empty:first-child::before) {
   content: attr(data-placeholder);
   color: #aaa;

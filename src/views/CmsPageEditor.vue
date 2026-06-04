@@ -330,15 +330,6 @@
           <div class="field-group">
             <label class="field-label">
               <input
-                v-model="form.use_theme_switcher_styles"
-                type="checkbox"
-              >
-              &nbsp;Use theme-switcher styles
-            </label>
-          </div>
-          <div class="field-group">
-            <label class="field-label">
-              <input
                 v-model="form.is_published"
                 type="checkbox"
               >
@@ -735,7 +726,6 @@ interface PageForm {
   sort_order: number;
   layout_id: string;
   style_id: string;
-  use_theme_switcher_styles: boolean;
   required_access_level_ids: string[];
   meta_title: string;
   meta_description: string;
@@ -760,7 +750,6 @@ const form = ref<PageForm>({
   sort_order: 0,
   layout_id: '',
   style_id: '',
-  use_theme_switcher_styles: true,
   required_access_level_ids: [] as string[],
   meta_title: '',
   meta_description: '',
@@ -891,7 +880,6 @@ onMounted(async () => {
         sort_order: p.sort_order,
         layout_id: (p as any).layout_id ?? '',
         style_id: (p as any).style_id ?? '',
-        use_theme_switcher_styles: (p as any).use_theme_switcher_styles ?? true,
         required_access_level_ids: (p as any).required_access_level_ids ?? [],
         meta_title: p.meta_title ?? '',
         meta_description: p.meta_description ?? '',

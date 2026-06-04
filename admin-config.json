@@ -5,6 +5,11 @@
       "label": "General",
       "fields": [
         {
+          "key": "debug_mode",
+          "label": "Debug Mode",
+          "component": "checkbox"
+        },
+        {
           "key": "defaultLanguage",
           "label": "Default Language",
           "component": "input",

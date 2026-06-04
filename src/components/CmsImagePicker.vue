@@ -53,7 +53,7 @@
         <div
           v-for="img in store.images?.items"
           :key="img.id"
-          :class="['picker__item', { selected: selectedId === img.id }]"
+          :class="['picker__item', { selected: isSelected(img) }]"
           @click="select(img)"
         >
           <img
@@ -90,10 +90,12 @@
       <div class="picker__footer">
         <button
           class="btn btn--primary"
-          :disabled="!selectedId"
+          :disabled="multiple ? !selectedMany.length : !selectedId"
           @click="confirm"
         >
-          {{ $t('cms.insertImage') }}
+          {{ multiple
+            ? `${$t('cms.insertSelected', 'Insert selected')} (${selectedMany.length})`
+            : $t('cms.insertImage') }}
         </button>
         <button
           class="btn"
@@ -111,8 +113,11 @@ import { ref, onMounted } from 'vue';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
 import type { CmsImage } from '../stores/useCmsAdminStore';
 
+const props = defineProps<{ multiple?: boolean }>();
+
 const emit = defineEmits<{
   (e: 'select', url: string, alt: string): void;
+  (e: 'select-many', images: { url: string; alt: string }[]): void;
   (e: 'close'): void;
 }>();
 
@@ -121,7 +126,14 @@ const search = ref('');
 const currentPage = ref(1);
 const selectedId = ref<string | null>(null);
 const selectedImg = ref<CmsImage | null>(null);
+const selectedMany = ref<CmsImage[]>([]);
 let searchTimer: ReturnType<typeof setTimeout>;
+
+function isSelected(img: CmsImage): boolean {
+  return props.multiple
+    ? selectedMany.value.some((i) => i.id === img.id)
+    : selectedId.value === img.id;
+}
 
 function load() {
   const params: Record<string, unknown> = { page: currentPage.value, per_page: 24 };
@@ -140,6 +152,12 @@ function changePage(n: number) {
 }
 
 function select(img: CmsImage) {
+  if (props.multiple) {
+    const idx = selectedMany.value.findIndex((i) => i.id === img.id);
+    if (idx >= 0) selectedMany.value.splice(idx, 1);
+    else selectedMany.value.push(img);
+    return;
+  }
   selectedId.value = img.id;
   selectedImg.value = img;
 }
@@ -153,6 +171,14 @@ async function onUpload(e: Event) {
 }
 
 function confirm() {
+  if (props.multiple) {
+    if (!selectedMany.value.length) return;
+    emit(
+      'select-many',
+      selectedMany.value.map((i) => ({ url: i.url_path, alt: i.alt_text ?? '' })),
+    );
+    return;
+  }
   if (!selectedImg.value) return;
   emit('select', selectedImg.value.url_path, selectedImg.value.alt_text ?? '');
 }

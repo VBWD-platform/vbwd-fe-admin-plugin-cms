@@ -443,10 +443,25 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       await _downloadExport('/admin/cms/widgets/export', ids.length === 1 ? 'cms-widget.json' : 'cms-widgets.zip', ids);
     },
 
-    async importWidget(file: File) {
-      const payload = JSON.parse(await file.text());
-      await api.post<any>('/admin/cms/widgets/import', payload);
+    async importWidget(
+      file: File,
+      mode: 'replace' | 'copy' = 'copy',
+    ): Promise<{ imported?: number; skipped?: number; failed?: number; errors?: { file: string; error: string }[] }> {
+      const isZip = /\.zip$/i.test(file.name) || file.type === 'application/zip';
+      let result: any;
+      if (isZip) {
+        const body = await file.arrayBuffer();
+        result = await api.post<any>(
+          `/admin/cms/widgets/import?mode=${mode}`,
+          body,
+          { headers: { 'Content-Type': 'application/zip' } },
+        );
+      } else {
+        const payload = JSON.parse(await file.text());
+        result = await api.post<any>(`/admin/cms/widgets/import?mode=${mode}`, payload);
+      }
       await this.fetchWidgets();
+      return result ?? {};
     },
 
     // ── Styles ────────────────────────────────────────────────────────────────
