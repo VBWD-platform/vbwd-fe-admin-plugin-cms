@@ -370,6 +370,30 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       await this.fetchLayouts();
     },
 
+    async bulkSetLayoutActive(ids: string[], active: boolean) {
+      await api.post<any>('/admin/cms/layouts/bulk/active', { ids, active });
+      this.selectedLayoutIds.clear();
+      await this.fetchLayouts();
+    },
+
+    /** Every id matching the current filter for an entity list ("totally all"
+     *  scope). Pages through the list (server caps per_page at 100). */
+    async fetchAllIds(entity: string, params: Record<string, unknown> = {}): Promise<string[]> {
+      const ids: string[] = [];
+      let page = 1;
+      for (;;) {
+        const res = await api.get<{ items?: { id: string }[]; pages?: number }>(
+          `/admin/cms/${entity}`,
+          { params: { ...params, page, per_page: 100 } },
+        );
+        const items = res.items ?? [];
+        ids.push(...items.map((i) => i.id));
+        if (!items.length || page >= (res.pages ?? 1)) break;
+        page += 1;
+      }
+      return ids;
+    },
+
     async exportLayouts(ids: string[]) {
       await _downloadExport('/admin/cms/layouts/export', ids.length === 1 ? 'cms-layout.json' : 'cms-layouts.zip', ids);
     },

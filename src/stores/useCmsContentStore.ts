@@ -224,6 +224,40 @@ export const useCmsContentStore = defineStore('cms-content', {
       await api.put(`/admin/cms/posts/${postId}/terms`, { term_ids: termIds });
     },
 
+    // ── Bulk operations (list bulk-bar) ──────────────────────────────────
+    /** Every post id matching the current filter (for "totally all" scope).
+     *  Pages through the list (per_page is capped at 100 server-side). */
+    async fetchAllPostIds(params: Record<string, unknown> = {}): Promise<string[]> {
+      const ids: string[] = [];
+      let page = 1;
+      for (;;) {
+        const res = await api.get<{ items?: { id: string }[]; pages?: number }>(
+          '/admin/cms/posts',
+          { params: { ...params, page, per_page: 100 } },
+        );
+        const items = res.items ?? [];
+        ids.push(...items.map((p) => p.id));
+        if (!items.length || page >= (res.pages ?? 1)) break;
+        page += 1;
+      }
+      return ids;
+    },
+    async bulkDeletePosts(ids: string[]): Promise<void> {
+      await api.post('/admin/cms/posts/bulk', { ids });
+    },
+    async bulkSetStatus(ids: string[], status: string): Promise<void> {
+      await api.post('/admin/cms/posts/bulk/status', { ids, status });
+    },
+    async bulkSetSearchable(ids: string[], searchable: boolean): Promise<void> {
+      await api.post('/admin/cms/posts/bulk/searchable', { ids, searchable });
+    },
+    async bulkAssignTerm(ids: string[], termId: string): Promise<void> {
+      await api.post('/admin/cms/posts/bulk/assign-term', { ids, term_id: termId });
+    },
+    async bulkDeleteTerms(ids: string[]): Promise<void> {
+      await api.post('/admin/cms/terms/bulk', { ids });
+    },
+
     // ── Terms ────────────────────────────────────────────────────────────
     async fetchTerms(termType: string) {
       const res = await api.get<unknown>('/admin/cms/terms', { params: { type: termType } });

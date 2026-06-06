@@ -1,8 +1,21 @@
 <template>
   <div class="cms-view post-editor">
     <div class="post-editor__header">
-      <h2>{{ isNew ? $t('cms.newPost') : $t('cms.editPost') }}</h2>
+      <h2>
+        {{ isNew
+          ? (form.type === 'page' ? $t('cms.newPage', 'New page') : $t('cms.newPost', 'New post'))
+          : (form.type === 'page' ? $t('cms.editPage', 'Edit page') : $t('cms.editPost', 'Edit post')) }}
+      </h2>
       <div class="post-editor__actions">
+        <button
+          type="button"
+          class="btn btn--ghost"
+          data-testid="editor-sidebar-toggle"
+          :title="sidebarCollapsed ? 'Show settings panel' : 'Hide settings panel'"
+          @click="toggleEditorSidebar"
+        >
+          {{ sidebarCollapsed ? '⚙ Settings' : 'Hide settings »' }}
+        </button>
         <a
           v-if="!isNew && form.slug"
           :href="postUrl"
@@ -11,7 +24,7 @@
           data-testid="post-view-link"
           :title="form.status === 'published' ? 'View published page' : 'Preview'"
         >
-          {{ form.status === 'published' ? 'View Page ↗' : 'Preview ↗' }}
+          {{ form.status === 'published' ? 'View Page 🔗' : 'Preview 🔗' }}
         </a>
         <router-link
           :to="{ name: 'cms-posts' }"
@@ -38,7 +51,10 @@
       {{ store.error }}
     </div>
 
-    <div class="post-editor__body">
+    <div
+      class="post-editor__body"
+      :class="{ 'post-editor__body--full': sidebarCollapsed }"
+    >
       <!-- Main column -->
       <div class="post-editor__main">
         <div class="field-group">
@@ -52,13 +68,29 @@
           >
         </div>
         <div class="field-group">
-          <label class="field-label">{{ $t('cms.slug') }} *</label>
-          <input
-            v-model="form.slug"
-            class="field-input field-input--mono"
-            type="text"
-            data-testid="post-slug"
-          >
+          <label class="field-label">
+            {{ $t('cms.slug') }} *
+            <a
+              v-if="postUrl"
+              :href="postUrl"
+              target="_blank"
+              class="slug-preview-link"
+              data-testid="slug-preview-link"
+              :title="form.status === 'published' ? 'View page' : 'Preview (unpublished)'"
+            >🔗</a>
+          </label>
+          <div class="slug-input-row">
+            <span
+              class="slug-prefix"
+              :title="feUserBaseUrl + '/'"
+            >{{ feUserBaseUrl }}/</span>
+            <input
+              v-model="form.slug"
+              class="field-input field-input--mono slug-input"
+              type="text"
+              data-testid="post-slug"
+            >
+          </div>
         </div>
         <div class="field-group">
           <label class="field-label">{{ $t('cms.excerpt') }}</label>
@@ -334,8 +366,11 @@
         </details>
       </div>
 
-      <!-- Sidebar -->
-      <div class="post-editor__sidebar">
+      <!-- Sidebar — collapsible to give the editor more width -->
+      <div
+        v-show="!sidebarCollapsed"
+        class="post-editor__sidebar"
+      >
         <div class="sidebar-card">
           <!-- Featured image — select from / upload to the CMS image gallery -->
           <div class="field-group">
@@ -403,11 +438,13 @@
               v-model="form.status"
               class="field-input"
               data-testid="post-status"
+              :style="statusStyle(form.status)"
             >
               <option
                 v-for="s in POST_STATUSES"
                 :key="s"
                 :value="s"
+                :style="statusStyle(s)"
               >
                 {{ $t(`cms.status_${s}`) }}
               </option>
@@ -628,6 +665,18 @@ import TipTapEditor from '../components/TipTapEditor.vue';
 const SERP_TITLE_MAX = 60;
 const SERP_DESC_MAX = 160;
 const POST_STATUSES = ['draft', 'pending', 'scheduled', 'published', 'private', 'trash'] as const;
+
+// Per-status colours for the status selector (options + the closed control).
+const STATUS_STYLES: Record<string, { color: string; fontWeight?: string }> = {
+  published: { color: '#16a34a' }, // green
+  draft: { color: '#dc2626' }, // red
+  pending: { color: '#f59e0b' }, // orange
+  scheduled: { color: '#d946ef' }, // magenta
+  private: { color: '#000000', fontWeight: '700' }, // black, bold
+};
+function statusStyle(status: string): Record<string, string> {
+  return STATUS_STYLES[status] ?? {};
+}
 const CONTENT_TABS = ['Visual', 'HTML', 'CSS', 'Preview'] as const;
 
 const route = useRoute();
@@ -702,6 +751,16 @@ const form = ref<PostForm>({
 
 const schemaJsonText = ref('');
 const schemaError = ref('');
+
+// ── Settings-panel collapse (more width for the editor) ─────────────────────
+const SIDEBAR_KEY = 'post_editor_sidebar_collapsed';
+const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_KEY) === '1');
+watch(sidebarCollapsed, (collapsed) => {
+  localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
+});
+function toggleEditorSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+}
 
 // ── Image picker (featured image, or insert into content) ───────────────────
 // One picker, three targets: the sidebar featured image, the Visual (TipTap)
@@ -800,9 +859,19 @@ watch(activeContentTab, async (tab) => {
 const feUserBaseUrl = window.location.port === '8081'
   ? 'http://localhost:8080'
   : window.location.origin.replace(':8081', ':8080');
+// Preview token (capability) for viewing unpublished content via a shareable
+// URL — only known once a post is saved/loaded.
+const previewToken = ref('');
 const postUrl = computed(() => {
   const slug = (form.value.slug || '').replace(/^\//, '');
-  return slug ? `${feUserBaseUrl}/${slug}` : '';
+  if (!slug) return '';
+  const url = `${feUserBaseUrl}/${slug}`;
+  // Published → public URL; otherwise a preview link that bypasses the
+  // published gate via the post's preview_token.
+  if (form.value.status !== 'published' && previewToken.value) {
+    return `${url}?preview_token=${previewToken.value}`;
+  }
+  return url;
 });
 
 // type_data is kept as a plain object; this proxy keeps v-model bindings stable.
@@ -1050,13 +1119,14 @@ onMounted(async () => {
         layout_id: post.layout_id ?? '',
         style_id: post.style_id ?? '',
       };
+      previewToken.value = (post as Record<string, unknown>).preview_token as string ?? '';
       schemaJsonText.value = post.schema_json ? JSON.stringify(post.schema_json, null, 2) : '';
       selectedTermIds.value = post.term_ids ?? [];
     }
   }
 });
 
-defineExpose({ form, selectedTermIds, save, activeContentTab, openPicker, onImageSelect, onGallerySelect });
+defineExpose({ form, selectedTermIds, save, activeContentTab, openPicker, onImageSelect, onGallerySelect, sidebarCollapsed, toggleEditorSidebar });
 </script>
 
 <style scoped>
@@ -1064,12 +1134,28 @@ defineExpose({ form, selectedTermIds, save, activeContentTab, openPicker, onImag
 .post-editor__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .post-editor__error { background: #fee2e2; color: #991b1b; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
 .post-editor__body { display: grid; grid-template-columns: 1fr 300px; gap: 1.5rem; align-items: start; min-width: 0; }
+.post-editor__body--full { grid-template-columns: 1fr; }
 @media (max-width: 900px) { .post-editor__body { grid-template-columns: 1fr; } }
 
 .field-group { margin-bottom: 1rem; }
 .field-label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: #374151; }
 .field-input { width: 100%; padding: 0.45rem 0.75rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.9rem; box-sizing: border-box; }
 .field-input--mono { font-family: monospace; }
+
+/* Slug field: a fixed base-URL prefix glued to the editable slug input. */
+.slug-input-row { display: flex; align-items: stretch; min-width: 0; }
+.slug-prefix {
+  display: inline-flex; align-items: center; padding: 0 0.5rem;
+  background: #f3f4f6; border: 1px solid #d1d5db; border-right: none;
+  border-radius: 4px 0 0 4px; font-size: 0.8rem; color: #6b7280;
+  font-family: monospace; white-space: nowrap; max-width: 55%; overflow: hidden; text-overflow: ellipsis;
+}
+.slug-input { border-radius: 0 4px 4px 0; min-width: 0; }
+.slug-preview-link {
+  margin-left: 6px; text-decoration: none; color: #3b82f6; font-weight: 700;
+  font-size: 0.95rem;
+}
+.slug-preview-link:hover { color: #1d4ed8; }
 .field-input--multi { min-height: 90px; }
 textarea.field-input { resize: vertical; }
 .field-error { font-size: 0.8rem; color: #dc2626; margin-top: 2px; }

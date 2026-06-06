@@ -149,8 +149,8 @@ describe('CmsContentList.vue (shared list)', () => {
     expect(push).toHaveBeenCalledWith({ name: 'cms-post-edit', params: { id: 'po-1' } });
   });
 
-  it('supports bulk selection and a bulk delete action', async () => {
-    (api.delete as any).mockResolvedValue({});
+  it('supports bulk selection and a bulk delete via the bulk endpoint', async () => {
+    (api.post as any).mockResolvedValue({ deleted: 1 });
     const { wrapper } = await mountList('post', POSTS);
     // No bulk bar until something is selected.
     expect(wrapper.find('[data-testid="bulk-bar"]').exists()).toBe(false);
@@ -161,14 +161,68 @@ describe('CmsContentList.vue (shared list)', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     await wrapper.find('[data-testid="bulk-delete"]').trigger('click');
     await flushPromises();
-    expect(api.delete).toHaveBeenCalledWith('/admin/cms/posts/po-1');
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk', { ids: ['po-1'] });
   });
 
-  it('select-all toggles every row', async () => {
+  it('select-all opens a scope menu; choosing this-page selects every row', async () => {
     const { wrapper } = await mountList('post', POSTS);
-    await wrapper.find('[data-testid="select-all"]').setValue(true);
+    await wrapper.find('[data-testid="select-all"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-testid="scope-menu"]').exists()).toBe(true);
+    await wrapper.find('[data-testid="scope-page"]').trigger('click');
     await flushPromises();
     expect(wrapper.find('[data-testid="bulk-bar"]').text()).toContain('2');
+  });
+
+  it('bulk publish posts the status to the bulk endpoint', async () => {
+    (api.post as any).mockResolvedValue({ updated: 1 });
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    await wrapper.find('[data-testid="bulk-publish"]').trigger('click');
+    await flushPromises();
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/status', { ids: ['po-1'], status: 'published' });
+  });
+
+  it('bulk searchable toggles search visibility', async () => {
+    (api.post as any).mockResolvedValue({ updated: 1 });
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    await wrapper.find('[data-testid="bulk-unsearchable"]').trigger('click');
+    await flushPromises();
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/searchable', { ids: ['po-1'], searchable: false });
+  });
+
+  it('renders the language / category / layout / style / date filters', async () => {
+    const { wrapper } = await mountList('post', POSTS);
+    for (const id of ['filter-status', 'filter-language', 'filter-category', 'filter-layout', 'filter-style', 'filter-date-from', 'filter-date-to']) {
+      expect(wrapper.find(`[data-testid="${id}"]`).exists()).toBe(true);
+    }
+  });
+
+  it('a filter change reloads the list with the filter params', async () => {
+    const { wrapper } = await mountList('post', POSTS);
+    (api.get as any).mockClear();
+    await wrapper.find('[data-testid="filter-language"]').setValue('de');
+    await flushPromises();
+    const call = (api.get as any).mock.calls.find(
+      (c: any[]) => c[0] === '/admin/cms/posts' && c[1]?.params?.language === 'de',
+    );
+    expect(call).toBeTruthy();
+  });
+
+  it('every listed column header is sortable with an indicator', async () => {
+    const { wrapper } = await mountList('post', POSTS);
+    expect(wrapper.find('[data-testid="sort-title"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="sort-status"]').exists()).toBe(true);
+    await wrapper.find('[data-testid="sort-title"]').trigger('click');
+    await flushPromises();
+    // re-fetch carries the new sort
+    const sorted = (api.get as any).mock.calls.find(
+      (c: any[]) => c[0] === '/admin/cms/posts' && c[1]?.params?.sort_by === 'title',
+    );
+    expect(sorted).toBeTruthy();
   });
 
   it('export triggers a GET download scoped to the type', async () => {

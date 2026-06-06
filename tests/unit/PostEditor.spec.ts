@@ -436,6 +436,65 @@ describe('PostEditor.vue', () => {
     expect(wrapper.find('[data-testid="post-view-link"]').exists()).toBe(false);
   });
 
+  it('builds a preview URL (with token) for an unpublished post', async () => {
+    (api.get as any).mockImplementation((url: string, opts?: any) => {
+      if (url === '/admin/cms/post-types') return Promise.resolve(POST_TYPES);
+      if (url === '/admin/cms/term-types') return Promise.resolve(TERM_TYPES);
+      if (url === '/admin/cms/terms') {
+        const type = opts?.params?.type;
+        if (type === 'category') return Promise.resolve(CATEGORIES);
+        if (type === 'tag') return Promise.resolve(TAGS);
+        return Promise.resolve([]);
+      }
+      if (url === '/admin/cms/posts/p-2') {
+        return Promise.resolve({
+          id: 'p-2', type: 'page', slug: 'draft-page', title: 'Draft', status: 'draft',
+          content_json: {}, content_html: '', parent_id: null, language: 'en',
+          translation_group_id: null, sort_order: 0, robots: 'index,follow', seo_excluded: false,
+          preview_token: 'tok-abc',
+        });
+      }
+      return Promise.resolve({});
+    });
+    const { wrapper } = await mountEditor('cms-post-edit', { id: 'p-2' });
+
+    const viewLink = wrapper.find('[data-testid="post-view-link"]');
+    expect(viewLink.text()).toContain('Preview');
+    expect(viewLink.attributes('href')).toContain('/draft-page?preview_token=tok-abc');
+
+    // The slug field shows the preview icon + a base-URL prefix ending in '/'.
+    expect(wrapper.find('[data-testid="slug-preview-link"]').attributes('href'))
+      .toContain('preview_token=tok-abc');
+    expect(wrapper.find('.slug-prefix').exists()).toBe(true);
+    expect(wrapper.find('.slug-prefix').text()).toMatch(/\/$/);
+  });
+
+  it('uses the plain public URL (no token) for a published post', async () => {
+    (api.get as any).mockImplementation((url: string, opts?: any) => {
+      if (url === '/admin/cms/post-types') return Promise.resolve(POST_TYPES);
+      if (url === '/admin/cms/term-types') return Promise.resolve(TERM_TYPES);
+      if (url === '/admin/cms/terms') {
+        const type = opts?.params?.type;
+        if (type === 'category') return Promise.resolve(CATEGORIES);
+        if (type === 'tag') return Promise.resolve(TAGS);
+        return Promise.resolve([]);
+      }
+      if (url === '/admin/cms/posts/p-3') {
+        return Promise.resolve({
+          id: 'p-3', type: 'page', slug: 'live', title: 'Live', status: 'published',
+          content_json: {}, content_html: '', parent_id: null, language: 'en',
+          translation_group_id: null, sort_order: 0, robots: 'index,follow', seo_excluded: false,
+          preview_token: 'tok-xyz',
+        });
+      }
+      return Promise.resolve({});
+    });
+    const { wrapper } = await mountEditor('cms-post-edit', { id: 'p-3' });
+    const href = wrapper.find('[data-testid="post-view-link"]').attributes('href');
+    expect(href).toContain('/live');
+    expect(href).not.toContain('preview_token');
+  });
+
   it('includes published_at in the payload when scheduling', async () => {
     (api.post as any).mockResolvedValue({ id: 'sched-id', type: 'post', slug: 'launch', title: 'Launch' });
     const { wrapper } = await mountEditor();
@@ -493,6 +552,22 @@ describe('PostEditor.vue', () => {
   });
 
   // ── Featured image ───────────────────────────────────────────────────────
+  it('collapses the settings sidebar to free editor width (persisted)', async () => {
+    localStorage.removeItem('post_editor_sidebar_collapsed');
+    const { wrapper } = await mountEditor();
+    // Expanded by default — body not full-width.
+    expect((wrapper.vm as any).sidebarCollapsed).toBe(false);
+    expect(wrapper.find('.post-editor__body--full').exists()).toBe(false);
+
+    await wrapper.find('[data-testid="editor-sidebar-toggle"]').trigger('click');
+    await flushPromises();
+
+    expect((wrapper.vm as any).sidebarCollapsed).toBe(true);
+    expect(wrapper.find('.post-editor__body--full').exists()).toBe(true);
+    expect(localStorage.getItem('post_editor_sidebar_collapsed')).toBe('1');
+    localStorage.removeItem('post_editor_sidebar_collapsed');
+  });
+
   it('shows a featured-image select button when none is set', async () => {
     const { wrapper } = await mountEditor();
     expect(wrapper.find('[data-testid="featured-image-select"]').exists()).toBe(true);

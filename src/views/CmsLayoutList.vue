@@ -40,6 +40,22 @@
     >
       <span>{{ store.selectedLayoutIds.size }} selected</span>
       <button
+        v-if="canManage"
+        class="btn"
+        data-testid="bulk-activate"
+        @click="bulkSetActive(true)"
+      >
+        Activate
+      </button>
+      <button
+        v-if="canManage"
+        class="btn"
+        data-testid="bulk-deactivate"
+        @click="bulkSetActive(false)"
+      >
+        Deactivate
+      </button>
+      <button
         class="btn"
         @click="exportSelected"
       >
@@ -198,6 +214,11 @@ function toggleOne(id: string) {
 async function bulkDelete() {
   if (!confirm(`Delete ${store.selectedLayoutIds.size} layout(s)?`)) return;
   await store.bulkDeleteLayouts([...store.selectedLayoutIds]);
+}
+
+async function bulkSetActive(active: boolean) {
+  if (!store.selectedLayoutIds.size) return;
+  await store.bulkSetLayoutActive([...store.selectedLayoutIds], active);
 }
 
 async function exportSelected() {

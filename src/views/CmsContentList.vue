@@ -8,7 +8,7 @@
           type="button"
           class="action-btn"
           data-testid="export-btn"
-          @click="exportContent"
+          @click="exportContent()"
         >
           {{ $t('cms.export') }}
         </button>
@@ -52,7 +52,8 @@
       <select
         v-model="filterStatus"
         class="filter-select"
-        @change="load"
+        data-testid="filter-status"
+        @change="applyFilters"
       >
         <option value="">
           {{ $t('cms.allStates') }}
@@ -65,25 +66,160 @@
           {{ $t(`cms.status_${status}`) }}
         </option>
       </select>
+      <select
+        v-model="filterLanguage"
+        class="filter-select"
+        data-testid="filter-language"
+        @change="applyFilters"
+      >
+        <option value="">
+          {{ $t('cms.allLanguages', 'All languages') }}
+        </option>
+        <option value="en">
+          English
+        </option>
+        <option value="de">
+          Deutsch
+        </option>
+        <option value="ru">
+          Russian
+        </option>
+      </select>
+      <select
+        v-model="filterCategory"
+        class="filter-select"
+        data-testid="filter-category"
+        @change="applyFilters"
+      >
+        <option value="">
+          {{ $t('cms.allCategories', 'All categories') }}
+        </option>
+        <option
+          v-for="cat in categoryTerms"
+          :key="cat.id"
+          :value="cat.id"
+        >
+          {{ cat.name }}
+        </option>
+      </select>
+      <select
+        v-model="filterLayout"
+        class="filter-select"
+        data-testid="filter-layout"
+        @change="applyFilters"
+      >
+        <option value="">
+          {{ $t('cms.allLayouts', 'All layouts') }}
+        </option>
+        <option
+          v-for="layout in (store.layouts?.items ?? [])"
+          :key="layout.id"
+          :value="layout.id"
+        >
+          {{ layout.name }}
+        </option>
+      </select>
+      <select
+        v-model="filterStyle"
+        class="filter-select"
+        data-testid="filter-style"
+        @change="applyFilters"
+      >
+        <option value="">
+          {{ $t('cms.allStyles', 'All styles') }}
+        </option>
+        <option
+          v-for="style in (store.styles?.items ?? [])"
+          :key="style.id"
+          :value="style.id"
+        >
+          {{ style.name }}
+        </option>
+      </select>
+      <input
+        v-model="dateFrom"
+        type="date"
+        class="filter-date"
+        data-testid="filter-date-from"
+        :title="$t('cms.updatedFrom', 'Updated from')"
+        @change="applyFilters"
+      >
+      <input
+        v-model="dateTo"
+        type="date"
+        class="filter-date"
+        data-testid="filter-date-to"
+        :title="$t('cms.updatedTo', 'Updated to')"
+        @change="applyFilters"
+      >
     </div>
 
     <!-- Bulk actions bar — only when at least one row is selected -->
-    <div
-      v-if="selectedIds.size"
-      class="bulk-bar"
-      data-testid="bulk-bar"
+    <CmsBulkBar
+      :count="bulk.selectedCount.value"
+      :can-manage="canManage"
+      :all-matching="bulk.allMatching.value"
+      :total="store.posts?.total ?? 0"
+      @export="bulkExport"
+      @delete="bulkDelete"
+      @clear="bulk.clear"
     >
-      <span>{{ selectedIds.size }} {{ $t('cms.selected') }}</span>
-      <button
-        v-if="canManage"
-        type="button"
-        class="action-btn danger"
-        data-testid="bulk-delete"
-        @click="bulkDelete"
-      >
-        {{ $t('cms.bulkDelete') }}
-      </button>
-    </div>
+      <template #actions>
+        <select
+          v-if="canManage"
+          class="bulk-select"
+          data-testid="bulk-assign-category"
+          @change="onBulkAssignCategory($event)"
+        >
+          <option value="">
+            + {{ $t('cms.assignCategory', 'Assign to a category') }}…
+          </option>
+          <option
+            v-for="cat in categoryTerms"
+            :key="cat.id"
+            :value="cat.id"
+          >
+            {{ cat.name }}
+          </option>
+        </select>
+        <button
+          v-if="canManage"
+          type="button"
+          class="btn"
+          data-testid="bulk-publish"
+          @click="bulkStatus('published')"
+        >
+          {{ $t('cms.publish', 'Publish') }}
+        </button>
+        <button
+          v-if="canManage"
+          type="button"
+          class="btn"
+          data-testid="bulk-unpublish"
+          @click="bulkStatus('draft')"
+        >
+          {{ $t('cms.unpublish', 'Unpublish') }}
+        </button>
+        <button
+          v-if="canManage"
+          type="button"
+          class="btn"
+          data-testid="bulk-searchable"
+          @click="bulkSearchable(true)"
+        >
+          {{ $t('cms.searchable', 'Searchable') }}
+        </button>
+        <button
+          v-if="canManage"
+          type="button"
+          class="btn"
+          data-testid="bulk-unsearchable"
+          @click="bulkSearchable(false)"
+        >
+          {{ $t('cms.unsearchable', 'Unsearchable') }}
+        </button>
+      </template>
+    </CmsBulkBar>
 
     <div
       v-if="store.error"
@@ -120,25 +256,61 @@
     >
       <thead>
         <tr>
-          <th class="select-col">
-            <input
-              type="checkbox"
-              data-testid="select-all"
-              :checked="allSelected"
-              @change="toggleSelectAll(($event.target as HTMLInputElement).checked)"
-            >
-          </th>
-          <th>{{ $t('cms.name') }}</th>
-          <th>{{ $t('cms.slug') }}</th>
+          <CmsSelectAllTh
+            :all-page-selected="bulk.allPageSelected.value"
+            :all-matching="bulk.allMatching.value"
+            :show-scope-menu="bulk.showScopeMenu.value"
+            :total="store.posts?.total ?? 0"
+            @toggle="bulk.onHeaderToggle"
+            @select-page="bulk.selectPage"
+            @select-all="bulk.selectAllMatching"
+          />
+          <CmsSortableTh
+            col="title"
+            :sort-by="sortBy"
+            :sort-dir="sortDir"
+            @sort="sort"
+          >
+            {{ $t('cms.name') }}
+          </CmsSortableTh>
+          <CmsSortableTh
+            col="slug"
+            :sort-by="sortBy"
+            :sort-dir="sortDir"
+            @sort="sort"
+          >
+            {{ $t('cms.slug') }}
+          </CmsSortableTh>
           <th v-if="!isPage">
             {{ $t('cms.category') }}
           </th>
           <th v-if="!isPage">
             {{ $t('cms.tags') }}
           </th>
-          <th>{{ $t('cms.language') }}</th>
-          <th>{{ $t('cms.status') }}</th>
-          <th>{{ $t('cms.updated') }}</th>
+          <CmsSortableTh
+            col="language"
+            :sort-by="sortBy"
+            :sort-dir="sortDir"
+            @sort="sort"
+          >
+            {{ $t('cms.language') }}
+          </CmsSortableTh>
+          <CmsSortableTh
+            col="status"
+            :sort-by="sortBy"
+            :sort-dir="sortDir"
+            @sort="sort"
+          >
+            {{ $t('cms.status') }}
+          </CmsSortableTh>
+          <CmsSortableTh
+            col="updated_at"
+            :sort-by="sortBy"
+            :sort-dir="sortDir"
+            @sort="sort"
+          >
+            {{ $t('cms.updated') }}
+          </CmsSortableTh>
           <th>{{ $t('common.actions') }}</th>
         </tr>
       </thead>
@@ -157,8 +329,8 @@
             <input
               type="checkbox"
               :data-testid="`row-select-${item.id}`"
-              :checked="selectedIds.has(item.id)"
-              @change="toggleRow(item.id, ($event.target as HTMLInputElement).checked)"
+              :checked="bulk.isSelected(item.id)"
+              @change="bulk.toggleOne(item.id)"
             >
           </td>
           <td>{{ item.title }}</td>
@@ -230,6 +402,10 @@ import { useRouter } from 'vue-router';
 import { api } from '@/api';
 import { useCmsContentStore, type CmsPost, type CmsTerm } from '../stores/useCmsContentStore';
 import { useAuthStore } from '@/stores/auth';
+import { useCmsBulkSelection } from '../composables/useCmsBulkSelection';
+import CmsBulkBar from '../components/CmsBulkBar.vue';
+import CmsSelectAllTh from '../components/CmsSelectAllTh.vue';
+import CmsSortableTh from '../components/CmsSortableTh.vue';
 
 const POST_STATUSES = ['draft', 'pending', 'scheduled', 'published', 'private', 'trash'] as const;
 const PER_PAGE = 20;
@@ -246,8 +422,15 @@ const isPage = computed(() => props.type === 'page');
 
 const search = ref('');
 const filterStatus = ref('');
+const filterLanguage = ref('');
+const filterCategory = ref('');
+const filterLayout = ref('');
+const filterStyle = ref('');
+const dateFrom = ref('');
+const dateTo = ref('');
 const currentPage = ref(1);
-const selectedIds = ref<Set<string>>(new Set());
+const sortBy = ref('updated_at');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const importInput = ref<HTMLInputElement | null>(null);
 
 // Term name lookups (posts only) — resolves term_ids → category / tag names.
@@ -256,15 +439,46 @@ const tagTerms = ref<CmsTerm[]>([]);
 
 let searchTimer: ReturnType<typeof setTimeout>;
 
-function load() {
-  const params: Record<string, unknown> = {
-    type: props.type,
-    page: currentPage.value,
-    per_page: PER_PAGE,
-  };
+// Filter params shared by the list query and the "totally all" id-fetch.
+function filterParams(): Record<string, unknown> {
+  const params: Record<string, unknown> = { type: props.type };
   if (search.value) params.search = search.value;
   if (filterStatus.value) params.status = filterStatus.value;
-  store.fetchPosts(params);
+  if (filterLanguage.value) params.language = filterLanguage.value;
+  if (filterCategory.value) params.category = filterCategory.value;
+  if (filterLayout.value) params.layout_id = filterLayout.value;
+  if (filterStyle.value) params.style_id = filterStyle.value;
+  if (dateFrom.value) params.date_from = dateFrom.value;
+  if (dateTo.value) params.date_to = dateTo.value;
+  return params;
+}
+
+// Any filter change resets to page 1 and reloads.
+function applyFilters() {
+  currentPage.value = 1;
+  load();
+}
+
+const bulk = useCmsBulkSelection({
+  pageIds: () => (store.posts?.items ?? []).map((item) => item.id),
+  totalCount: () => store.posts?.total ?? 0,
+  fetchAllIds: () => store.fetchAllPostIds(filterParams()),
+});
+
+function load() {
+  store.fetchPosts({
+    ...filterParams(),
+    page: currentPage.value,
+    per_page: PER_PAGE,
+    sort_by: sortBy.value,
+    sort_dir: sortDir.value,
+  });
+}
+
+function sort(col: string) {
+  if (sortBy.value === col) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+  else { sortBy.value = col; sortDir.value = 'asc'; }
+  load();
 }
 
 function onSearch() {
@@ -300,32 +514,47 @@ function tagNamesFor(item: CmsPost): string {
   return namesFor(item, tagTerms.value);
 }
 
-// ── Selection / bulk ─────────────────────────────────────────────────────
-const allSelected = computed(() => {
-  const items = store.posts?.items ?? [];
-  return items.length > 0 && items.every((item) => selectedIds.value.has(item.id));
-});
-
-function toggleRow(id: string, checked: boolean) {
-  const next = new Set(selectedIds.value);
-  if (checked) next.add(id);
-  else next.delete(id);
-  selectedIds.value = next;
-}
-
-function toggleSelectAll(checked: boolean) {
-  const items = store.posts?.items ?? [];
-  selectedIds.value = checked ? new Set(items.map((item) => item.id)) : new Set();
-}
-
+// ── Bulk actions ─────────────────────────────────────────────────────────
 async function bulkDelete() {
-  if (!selectedIds.value.size) return;
-  if (!confirm(`Delete ${selectedIds.value.size} selected item(s)?`)) return;
-  for (const id of selectedIds.value) {
-    await api.delete(`/admin/cms/posts/${id}`);
-  }
-  selectedIds.value = new Set();
+  const ids = await bulk.resolveIds();
+  if (!ids.length || !confirm(`Delete ${ids.length} selected item(s)?`)) return;
+  await store.bulkDeletePosts(ids);
+  bulk.clear();
   load();
+}
+
+async function bulkStatus(status: string) {
+  const ids = await bulk.resolveIds();
+  if (!ids.length) return;
+  await store.bulkSetStatus(ids, status);
+  bulk.clear();
+  load();
+}
+
+async function bulkSearchable(searchable: boolean) {
+  const ids = await bulk.resolveIds();
+  if (!ids.length) return;
+  await store.bulkSetSearchable(ids, searchable);
+  bulk.clear();
+  load();
+}
+
+async function onBulkAssignCategory(event: Event) {
+  const select = event.target as HTMLSelectElement;
+  const termId = select.value;
+  select.value = '';
+  if (!termId) return;
+  const ids = await bulk.resolveIds();
+  if (!ids.length) return;
+  await store.bulkAssignTerm(ids, termId);
+  bulk.clear();
+  load();
+}
+
+async function bulkExport() {
+  const ids = await bulk.resolveIds();
+  if (!ids.length) return;
+  await exportContent(ids);
 }
 
 async function deleteOne(id: string) {
@@ -335,11 +564,13 @@ async function deleteOne(id: string) {
 }
 
 // ── Import / Export ──────────────────────────────────────────────────────
-async function exportContent() {
+// `ids` scopes to "export selected"; without it, exports the whole type.
+async function exportContent(ids?: string[]) {
   const { useAuthStore: getAuthStore } = await import('@/stores/auth');
   const auth = getAuthStore();
   const base = (import.meta.env.VITE_API_URL as string) || '/api/v1';
-  const res = await fetch(`${base}/admin/cms/posts/export?type=${props.type}`, {
+  const idsQuery = ids && ids.length ? `&ids=${ids.join(',')}` : '';
+  const res = await fetch(`${base}/admin/cms/posts/export?type=${props.type}${idsQuery}`, {
     method: 'GET',
     headers: {
       ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
@@ -384,17 +615,23 @@ async function onImportFile(event: Event) {
 }
 
 onMounted(async () => {
-  // Posts surface category + tag columns; resolve their names once.
+  // Categories feed both the "Assign to a category" bulk action and the
+  // category filter; layouts + styles feed their filter dropdowns.
+  await store.fetchTerms('category');
+  categoryTerms.value = [...store.terms];
   if (!isPage.value) {
-    await store.fetchTerms('category');
-    categoryTerms.value = [...store.terms];
     await store.fetchTerms('tag');
     tagTerms.value = [...store.terms];
   }
+  store.fetchLayouts({ per_page: 100 });
+  store.fetchStyles({ per_page: 100 });
   load();
 });
 
-defineExpose({ onImportFile, exportContent, bulkDelete, load });
+defineExpose({
+  onImportFile, exportContent, bulkDelete, bulkStatus, bulkSearchable,
+  onBulkAssignCategory, bulkExport, sort, load, bulk,
+});
 </script>
 
 <style scoped>
@@ -402,6 +639,18 @@ defineExpose({ onImportFile, exportContent, bulkDelete, load });
   background: white;
   padding: 20px;
   border-radius: 8px;
+}
+
+/* Bulk-bar slotted controls (slotted content is styled in this parent scope). */
+.btn {
+  padding: 8px 16px; border: 1px solid var(--admin-border, #e0e0e0);
+  border-radius: 4px; background: var(--admin-card-bg, #fff);
+  color: var(--admin-text, #333); cursor: pointer; font-size: 14px; white-space: nowrap;
+}
+.btn:hover { background: var(--admin-row-hover, #f8f9fa); }
+.bulk-select {
+  padding: 8px 10px; border: 1px solid var(--admin-input-border, #ddd);
+  border-radius: 4px; font-size: 13px; background: var(--admin-card-bg, #fff); color: var(--admin-text, #333);
 }
 
 .view-header {
@@ -480,6 +729,14 @@ defineExpose({ onImportFile, exportContent, bulkDelete, load });
   background: white;
   cursor: pointer;
 }
+.filter-date {
+  padding: 9px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+}
+.view-filters { flex-wrap: wrap; gap: 8px; }
 
 .bulk-bar {
   display: flex;
