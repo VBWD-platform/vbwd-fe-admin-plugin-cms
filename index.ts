@@ -33,6 +33,7 @@ const NAV_SECTIONS = [
       { label: 'Styles', to: '/admin/cms/styles', requiredPermission: 'cms.styles.manage' },
       { label: 'Routing Rules', to: '/admin/cms/routing-rules', requiredPermission: 'cms.configure' },
       { label: 'Import / Export', to: '/admin/cms/import-export', requiredPermission: 'cms.pages.manage' },
+      { label: 'SEO', to: '/admin/cms/seo', requiredPermission: 'cms.manage' },
     ],
   },
 ];
@@ -143,6 +144,13 @@ export const cmsAdminPlugin: IPlugin = {
       name: 'cms-import-export',
       component: () => import('./src/views/CmsImportExport.vue'),
       meta: { requiredPermission: 'cms.pages.manage' },
+    });
+    // SEO maintenance (clean up prerendered content)
+    sdk.addRoute({
+      path: 'cms/seo',
+      name: 'cms-seo',
+      component: () => import('./src/views/CmsSeo.vue'),
+      meta: { requiredPermission: 'cms.manage' },
     });
     // Layouts
     sdk.addRoute({

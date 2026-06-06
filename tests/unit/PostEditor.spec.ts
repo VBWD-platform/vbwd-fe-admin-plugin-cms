@@ -126,6 +126,7 @@ async function mountEditor(routeName = 'cms-post-new', params: Record<string, st
     history: createMemoryHistory(),
     routes: [
       { path: '/admin/cms/posts', name: 'cms-posts', component: { template: '<div />' } },
+      { path: '/admin/cms/pages', name: 'cms-admin-pages', component: { template: '<div />' } },
       { path: '/admin/cms/posts/new', name: 'cms-post-new', component: PostEditor },
       { path: '/admin/cms/posts/:id/edit', name: 'cms-post-edit', component: PostEditor },
     ],
@@ -434,6 +435,19 @@ describe('PostEditor.vue', () => {
   it('hides the View Page link for a new (unsaved) post', async () => {
     const { wrapper } = await mountEditor();
     expect(wrapper.find('[data-testid="post-view-link"]').exists()).toBe(false);
+  });
+
+  // ── Cancel returns to the list matching the content type ────────────────
+  it('Cancel returns to the pages list when editing a page', async () => {
+    const { wrapper } = await mountEditor('cms-post-new', {}, { type: 'page' });
+    expect((wrapper.vm as any).form.type).toBe('page');
+    expect(wrapper.find('[data-testid="post-cancel"]').attributes('href')).toBe('/admin/cms/pages');
+  });
+
+  it('Cancel returns to the posts list when editing a post', async () => {
+    const { wrapper } = await mountEditor('cms-post-new', {}, { type: 'post' });
+    expect((wrapper.vm as any).form.type).toBe('post');
+    expect(wrapper.find('[data-testid="post-cancel"]').attributes('href')).toBe('/admin/cms/posts');
   });
 
   it('builds a preview URL (with token) for an unpublished post', async () => {

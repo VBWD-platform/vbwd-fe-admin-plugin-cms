@@ -27,8 +27,9 @@
           {{ form.status === 'published' ? 'View Page 🔗' : 'Preview 🔗' }}
         </a>
         <router-link
-          :to="{ name: 'cms-posts' }"
+          :to="{ name: form.type === 'page' ? 'cms-admin-pages' : 'cms-posts' }"
           class="btn btn--ghost"
+          data-testid="post-cancel"
         >
           {{ $t('cms.cancel') }}
         </router-link>

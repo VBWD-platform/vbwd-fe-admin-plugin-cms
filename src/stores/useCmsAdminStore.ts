@@ -619,5 +619,21 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       if (!res.ok) throw new Error(data?.error ?? `Import failed: ${res.statusText}`);
       return data;
     },
+
+    // Delete every prerendered ${VAR_DIR}/seo/*.html. nginx serves prerendered
+    // pages by file existence, so this is how switching SEO prerendering off
+    // actually takes effect (traffic falls back to the SPA). Returns the count.
+    async cleanupSeo(): Promise<number> {
+      const res = await api.post<{ removed: number }>('/admin/cms/seo/cleanup', {});
+      return res.removed;
+    },
+
+    // (Re)build a prerendered ${VAR_DIR}/seo/<slug>.html for every published
+    // post. Manual override — runs regardless of the on/off toggle. Returns the
+    // number of files written.
+    async regenerateSeo(): Promise<number> {
+      const res = await api.post<{ regenerated: number }>('/admin/cms/seo/regenerate', {});
+      return res.regenerated;
+    },
   },
 });
