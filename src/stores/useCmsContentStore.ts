@@ -78,6 +78,24 @@ export interface CmsPost {
   layout_id?: string | null;
   style_id?: string | null;
   term_ids?: string[];
+  /** Non-primary content areas, keyed by area name (admin GET post, S55). */
+  content_blocks?: Record<string, {
+    id?: string;
+    area_name: string;
+    content_html?: string | null;
+    source_css?: string | null;
+    sort_order?: number;
+    content_json?: Record<string, unknown> | null;
+  }>;
+  /** Per-page widget overrides for layout areas (admin GET post, S55). */
+  page_assignments?: Array<{
+    id?: string;
+    widget_id: string;
+    area_name: string;
+    sort_order: number;
+    required_access_level_ids?: string[];
+    widget?: Record<string, unknown>;
+  }>;
   updated_at?: string;
 }
 
@@ -89,11 +107,36 @@ export interface PaginatedPosts {
   pages: number;
 }
 
+/** A layout area declaration (subset surfaced by the layout list endpoint). */
+export interface CmsAreaSummary {
+  name: string;
+  type: string;
+  label?: string;
+}
+
 /** A renderable layout (subset surfaced by the layout list endpoint). */
 export interface CmsLayoutSummary {
   id: string;
   slug: string;
   name: string;
+  /** Declared render areas (header/content/page-widget/…) — drives the
+   *  PostEditor's per-area content blocks + page-widget panel (S55.2). */
+  areas?: CmsAreaSummary[];
+}
+
+/** A widget assignable to a layout/page area (subset for the widget picker). */
+export interface CmsWidgetSummary {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+/** A per-post widget override for a layout area (mirrors the layout assignment). */
+export interface PostWidgetAssignment {
+  widget_id: string;
+  area_name: string;
+  sort_order: number;
+  required_access_level_ids: string[];
 }
 
 /** A renderable style (subset surfaced by the style list endpoint). */
@@ -112,6 +155,7 @@ interface CmsContentState {
   terms: CmsTerm[];
   layouts: { items: CmsLayoutSummary[] } | null;
   styles: { items: CmsStyleSummary[] } | null;
+  widgets: { items: CmsWidgetSummary[] } | null;
   loading: boolean;
   error: string | null;
 }
@@ -132,6 +176,7 @@ export const useCmsContentStore = defineStore('cms-content', {
     terms: [],
     layouts: null,
     styles: null,
+    widgets: null,
     loading: false,
     error: null,
   }),
@@ -146,6 +191,11 @@ export const useCmsContentStore = defineStore('cms-content', {
     async fetchStyles(params: Record<string, unknown> = {}) {
       const res = await api.get<{ items: CmsStyleSummary[] }>('/admin/cms/styles', { params });
       this.styles = { items: unwrapList<CmsStyleSummary>(res, 'items') };
+    },
+
+    async fetchWidgets(params: Record<string, unknown> = {}) {
+      const res = await api.get<{ items: CmsWidgetSummary[] }>('/admin/cms/widgets', { params });
+      this.widgets = { items: unwrapList<CmsWidgetSummary>(res, 'items') };
     },
 
     // ── Registries ───────────────────────────────────────────────────────
@@ -224,6 +274,11 @@ export const useCmsContentStore = defineStore('cms-content', {
       await api.put(`/admin/cms/posts/${postId}/terms`, { term_ids: termIds });
     },
 
+    /** Replace the per-post widget overrides for the layout's page areas. */
+    async savePostWidgets(postId: string, assignments: PostWidgetAssignment[]): Promise<void> {
+      await api.put(`/admin/cms/posts/${postId}/widgets`, assignments);
+    },
+
     // ── Bulk operations (list bulk-bar) ──────────────────────────────────
     /** Every post id matching the current filter (for "totally all" scope).
      *  Pages through the list (per_page is capped at 100 server-side). */
@@ -253,6 +308,12 @@ export const useCmsContentStore = defineStore('cms-content', {
     },
     async bulkAssignTerm(ids: string[], termId: string): Promise<void> {
       await api.post('/admin/cms/posts/bulk/assign-term', { ids, term_id: termId });
+    },
+    async bulkAssignLayout(ids: string[], layoutId: string | null): Promise<void> {
+      await api.post('/admin/cms/posts/bulk/assign-layout', { ids, layout_id: layoutId });
+    },
+    async bulkUnassignCategory(ids: string[]): Promise<void> {
+      await api.post('/admin/cms/posts/bulk/unassign-category', { ids });
     },
     async bulkDeleteTerms(ids: string[]): Promise<void> {
       await api.post('/admin/cms/terms/bulk', { ids });

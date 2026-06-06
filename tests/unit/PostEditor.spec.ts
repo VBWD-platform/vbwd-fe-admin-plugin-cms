@@ -97,6 +97,31 @@ const LAYOUTS = {
   total: 1, page: 1, per_page: 100, pages: 1,
 };
 
+// A layout with one primary content area plus an extra content area and a
+// page-widget slot — exercises the S55.2 multi-area editor + widget panel.
+const MULTI_AREA_LAYOUTS = {
+  items: [
+    {
+      id: 'lay-multi', slug: 'multi', name: 'Multi Area Layout', sort_order: 0, is_active: true,
+      areas: [
+        { name: 'header', type: 'header', label: 'Header' },
+        { name: 'content', type: 'content', label: 'Main' },
+        { name: 'sidebar-content', type: 'content', label: 'Sidebar' },
+        { name: 'cta', type: 'page-widget', label: 'Call to action' },
+      ],
+    },
+  ],
+  total: 1, page: 1, per_page: 100, pages: 1,
+};
+
+const WIDGETS = {
+  items: [
+    { id: 'wid-1', slug: 'promo', name: 'Promo Widget', widget_type: 'html', sort_order: 0, is_active: true },
+    { id: 'wid-2', slug: 'newsletter', name: 'Newsletter Widget', widget_type: 'html', sort_order: 1, is_active: true },
+  ],
+  total: 2, page: 1, per_page: 200, pages: 1,
+};
+
 const STYLES = {
   items: [
     { id: 'sty-1', slug: 'default', name: 'Default Style', is_default: true, sort_order: 0, is_active: true },
@@ -105,12 +130,13 @@ const STYLES = {
   total: 2, page: 1, per_page: 100, pages: 1,
 };
 
-function primeApi() {
+function primeApi(layouts: unknown = LAYOUTS) {
   (api.get as any).mockImplementation((url: string, opts?: any) => {
     if (url === '/admin/cms/post-types') return Promise.resolve(POST_TYPES);
     if (url === '/admin/cms/term-types') return Promise.resolve(TERM_TYPES);
-    if (url === '/admin/cms/layouts') return Promise.resolve(LAYOUTS);
+    if (url === '/admin/cms/layouts') return Promise.resolve(layouts);
     if (url === '/admin/cms/styles') return Promise.resolve(STYLES);
+    if (url === '/admin/cms/widgets') return Promise.resolve(WIDGETS);
     if (url === '/admin/cms/terms') {
       const type = opts?.params?.type;
       if (type === 'category') return Promise.resolve(CATEGORIES);
@@ -706,5 +732,207 @@ describe('PostEditor.vue', () => {
     const { wrapper } = await mountEditor('cms-post-edit', { id: 'p-9' });
     expect((wrapper.vm as any).form.layout_id).toBe('lay-1');
     expect((wrapper.vm as any).form.style_id).toBe('sty-2');
+  });
+
+  // ── S55.2: layout-area-driven content blocks + page-widgets panel ─────────
+  describe('per-layout-area content blocks + page widgets', () => {
+    beforeEach(() => {
+      // Re-prime with the multi-area layout so the editor surfaces the extra
+      // content area + page-widget slot once the layout is selected.
+      vi.clearAllMocks();
+      primeApi(MULTI_AREA_LAYOUTS);
+    });
+
+    it('renders only the primary content editor when no layout is selected', async () => {
+      const { wrapper } = await mountEditor();
+      // No layout → no additional content-block editors, no widget panel.
+      expect(wrapper.findAll('.content-block-extra')).toHaveLength(0);
+      expect(wrapper.find('[data-testid="page-widgets-panel"]').exists()).toBe(false);
+    });
+
+    it('renders one extra content editor for each additional content area', async () => {
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+      // 'content' is the primary (existing editor) — only 'sidebar-content' is extra.
+      const blocks = wrapper.findAll('.content-block-extra');
+      expect(blocks).toHaveLength(1);
+      expect(wrapper.find('[data-testid="content-block-editor-sidebar-content"]').exists()).toBe(true);
+      // The primary single content editor remains untouched.
+      expect(wrapper.find('[data-testid="cm-html"]').exists()).toBe(true);
+    });
+
+    it('renders a single content editor (no blocks) for a one-content-area layout', async () => {
+      vi.clearAllMocks();
+      primeApi({
+        items: [{
+          id: 'lay-solo', slug: 'solo', name: 'Solo', sort_order: 0, is_active: true,
+          areas: [{ name: 'content', type: 'content', label: 'Main' }],
+        }],
+        total: 1, page: 1, per_page: 100, pages: 1,
+      });
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-solo';
+      await flushPromises();
+      expect(wrapper.findAll('.content-block-extra')).toHaveLength(0);
+    });
+
+    it('binds an extra content block editor to form.content_blocks', async () => {
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+      await wrapper
+        .find('[data-testid="content-block-editor-sidebar-content"] [data-testid="cm-html"]')
+        .setValue('<p>sidebar body</p>');
+      await flushPromises();
+      expect((wrapper.vm as any).form.content_blocks['sidebar-content'].content_html)
+        .toBe('<p>sidebar body</p>');
+    });
+
+    it('renders a page-widgets panel with a row only per page-widget area', async () => {
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+      expect(wrapper.find('[data-testid="page-widgets-panel"]').exists()).toBe(true);
+      // Only the 'cta' page-widget area gets a selector.
+      const selector = wrapper.find('[data-testid="page-widget-select-cta"]');
+      expect(selector.exists()).toBe(true);
+      // Chrome areas (header / footer / vue) must NOT get a per-page override.
+      expect(wrapper.find('[data-testid="page-widget-select-header"]').exists()).toBe(false);
+      // Exactly one widget row, for the single page-widget area.
+      expect(wrapper.findAll('.page-widget-row')).toHaveLength(1);
+      // Options include the loaded widgets.
+      const values = selector.findAll('option').map((o) => o.attributes('value'));
+      expect(values).toContain('wid-1');
+      expect(values).toContain('wid-2');
+    });
+
+    it('hides the page-widgets panel when the layout has no page-widget area', async () => {
+      vi.clearAllMocks();
+      primeApi({
+        items: [{
+          id: 'lay-nowidget', slug: 'nowidget', name: 'No Widget', sort_order: 0, is_active: true,
+          areas: [
+            { name: 'header', type: 'header', label: 'Header' },
+            { name: 'content', type: 'content', label: 'Main' },
+            { name: 'footer', type: 'footer', label: 'Footer' },
+          ],
+        }],
+        total: 1, page: 1, per_page: 100, pages: 1,
+      });
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-nowidget';
+      await flushPromises();
+      expect(wrapper.find('[data-testid="page-widgets-panel"]').exists()).toBe(false);
+    });
+
+    it('labels each extra content-block editor with the layout area name', async () => {
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+      // The extra content area (sidebar-content) carries its area label as a heading.
+      const block = wrapper.find('[data-testid="content-block-editor-sidebar-content"]');
+      expect(block.exists()).toBe(true);
+      expect(block.text()).toContain('Sidebar');
+    });
+
+    it('binds the widget selection to form.page_widgets', async () => {
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('wid-2');
+      await flushPromises();
+      const assignment = (wrapper.vm as any).form.page_widgets.find(
+        (w: { area_name: string }) => w.area_name === 'cta',
+      );
+      expect(assignment.widget_id).toBe('wid-2');
+      // Clearing the selection removes the override (layout default applies).
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('');
+      await flushPromises();
+      expect(
+        (wrapper.vm as any).form.page_widgets.find((w: { area_name: string }) => w.area_name === 'cta'),
+      ).toBeUndefined();
+    });
+
+    it('saves content_blocks in the payload and PUTs the page widgets after the post', async () => {
+      (api.post as any).mockResolvedValue({ id: 'mp-id', type: 'page', slug: 'multi', title: 'Multi' });
+      (api.put as any).mockResolvedValue({});
+      const { wrapper } = await mountEditor();
+      await wrapper.find('[data-testid="post-title"]').setValue('Multi');
+      await wrapper.find('[data-testid="post-slug"]').setValue('multi');
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+      await wrapper
+        .find('[data-testid="content-block-editor-sidebar-content"] [data-testid="cm-html"]')
+        .setValue('<p>aside</p>');
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('wid-1');
+      await flushPromises();
+
+      await (wrapper.vm as any).save();
+      await flushPromises();
+
+      // content_blocks ride the post payload as an array, excluding the primary area.
+      const payload = (api.post as any).mock.calls[0][1];
+      expect(payload.content_blocks).toEqual([
+        { area_name: 'sidebar-content', content_html: '<p>aside</p>', source_css: null, sort_order: 0 },
+      ]);
+
+      // Page widgets are saved through a separate PUT after the post is created.
+      expect(api.put).toHaveBeenCalledWith('/admin/cms/posts/mp-id/widgets', [
+        { widget_id: 'wid-1', area_name: 'cta', sort_order: 0, required_access_level_ids: [] },
+      ]);
+    });
+
+    it('loads content_blocks + page_assignments from the admin post response', async () => {
+      vi.clearAllMocks();
+      (api.get as any).mockImplementation((url: string, opts?: any) => {
+        if (url === '/admin/cms/post-types') return Promise.resolve(POST_TYPES);
+        if (url === '/admin/cms/term-types') return Promise.resolve(TERM_TYPES);
+        if (url === '/admin/cms/layouts') return Promise.resolve(MULTI_AREA_LAYOUTS);
+        if (url === '/admin/cms/styles') return Promise.resolve(STYLES);
+        if (url === '/admin/cms/widgets') return Promise.resolve(WIDGETS);
+        if (url === '/admin/cms/terms') {
+          const type = opts?.params?.type;
+          if (type === 'category') return Promise.resolve(CATEGORIES);
+          if (type === 'tag') return Promise.resolve(TAGS);
+          return Promise.resolve([]);
+        }
+        if (url === '/admin/cms/posts/p-multi') {
+          return Promise.resolve({
+            id: 'p-multi', type: 'page', slug: 'multi', title: 'Multi', status: 'draft',
+            content_json: {}, content_html: '<p>main</p>', parent_id: null, language: 'en',
+            translation_group_id: null, sort_order: 0, robots: 'index,follow', seo_excluded: false,
+            layout_id: 'lay-multi',
+            content_blocks: {
+              'sidebar-content': {
+                id: 'cb-1', area_name: 'sidebar-content', content_html: '<p>aside</p>',
+                source_css: '.x{}', sort_order: 0, content_json: {},
+              },
+            },
+            page_assignments: [
+              {
+                id: 'pa-1', widget_id: 'wid-2', area_name: 'cta', sort_order: 0,
+                required_access_level_ids: ['lvl-1'], widget: { id: 'wid-2', name: 'Newsletter Widget' },
+              },
+            ],
+          });
+        }
+        return Promise.resolve({});
+      });
+      const { wrapper } = await mountEditor('cms-post-edit', { id: 'p-multi' });
+      await flushPromises();
+
+      expect((wrapper.vm as any).form.content_blocks['sidebar-content'].content_html).toBe('<p>aside</p>');
+      expect((wrapper.vm as any).form.content_blocks['sidebar-content'].source_css).toBe('.x{}');
+
+      const widgets = (wrapper.vm as any).form.page_widgets;
+      expect(widgets).toHaveLength(1);
+      expect(widgets[0]).toMatchObject({
+        widget_id: 'wid-2', area_name: 'cta', required_access_level_ids: ['lvl-1'],
+      });
+      // The selector reflects the loaded assignment.
+      expect((wrapper.find('[data-testid="page-widget-select-cta"]').element as HTMLSelectElement).value)
+        .toBe('wid-2');
+    });
   });
 });

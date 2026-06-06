@@ -76,6 +76,7 @@ export interface CmsLayout {
   assignments?: CmsLayoutWidgetAssignment[];
   sort_order: number;
   is_active: boolean;
+  is_default: boolean;
   updated_at: string;
 }
 
@@ -401,6 +402,17 @@ export const useCmsAdminStore = defineStore('cms-admin', {
     async importLayout(file: File) {
       const payload = JSON.parse(await file.text());
       await api.post<any>('/admin/cms/layouts/import', payload);
+      await this.fetchLayouts();
+    },
+
+    // ── default-layout management (mirrors setDefaultStyle) ─────────────────
+    async setDefaultLayout(id: string) {
+      await api.post<any>(`/admin/cms/layouts/${id}/default`);
+      await this.fetchLayouts();
+    },
+
+    async clearDefaultLayout() {
+      await api.delete<any>('/admin/cms/layouts/default');
       await this.fetchLayouts();
     },
 

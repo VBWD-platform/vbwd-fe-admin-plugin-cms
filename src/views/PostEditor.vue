@@ -133,7 +133,7 @@
              silently flattened. content_json keeps a single richtext block for
              back-compat. -->
         <div class="content-block-section">
-          <label class="field-label">{{ $t('cms.content') }}</label>
+          <label class="field-label">{{ primaryContentLabel || $t('cms.content') }}</label>
           <div class="tabs">
             <button
               v-for="tab in contentTabs"
@@ -209,6 +209,75 @@
             />
           </div>
         </div>
+
+        <!-- Additional content areas (S55.2) — one collapsible HTML/CSS editor
+             per extra `type:content` layout area. The first content area stays
+             in the primary editor above (→ content_html). -->
+        <details
+          v-for="area in additionalContentAreas"
+          :key="area.name"
+          class="content-block-section content-block-extra"
+          :data-testid="`content-block-editor-${area.name}`"
+          open
+        >
+          <summary class="content-block-extra__title">
+            {{ area.label || area.name }}
+          </summary>
+          <label class="field-label">{{ $t('cms.content') }} (HTML)</label>
+          <CodeMirrorEditor
+            v-model="form.content_blocks[area.name].content_html"
+            lang="html"
+            min-height="240px"
+          />
+          <label class="field-label">{{ $t('cms.css', 'CSS') }}</label>
+          <CodeMirrorEditor
+            v-model="form.content_blocks[area.name].source_css"
+            lang="css"
+            min-height="160px"
+          />
+        </details>
+
+        <!-- Page-widgets panel (S55.2) — assign a widget to each widget-capable
+             layout area, overriding the layout default. Clearing falls back to
+             the layout's own widget. -->
+        <details
+          v-if="widgetAreas.length"
+          class="page-widgets-section"
+          data-testid="page-widgets-panel"
+          open
+        >
+          <summary class="page-widgets-section__title">
+            {{ $t('cms.pageWidgets', 'Page widgets') }}
+          </summary>
+          <p class="page-widgets-hint">
+            {{ $t('cms.pageWidgetsHint', 'Pick a widget per area to override the layout default for this page only.') }}
+          </p>
+          <div
+            v-for="area in widgetAreas"
+            :key="area.name"
+            class="page-widget-row"
+            :data-testid="`page-widget-row-${area.name}`"
+          >
+            <span class="page-widget-row__area">{{ area.label || area.name }}</span>
+            <select
+              class="field-input"
+              :data-testid="`page-widget-select-${area.name}`"
+              :value="pageWidgetIdFor(area.name)"
+              @change="setPageWidget(area.name, ($event.target as HTMLSelectElement).value)"
+            >
+              <option value="">
+                — {{ $t('cms.layoutDefault', 'Layout default') }} —
+              </option>
+              <option
+                v-for="widget in store.widgets?.items ?? []"
+                :key="widget.id"
+                :value="widget.id"
+              >
+                {{ widget.name }}
+              </option>
+            </select>
+          </div>
+        </details>
 
         <!-- SEO panel -->
         <details
@@ -657,7 +726,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useCmsContentStore, type CmsTerm, type PostTypeField } from '../stores/useCmsContentStore';
+import {
+  useCmsContentStore,
+  type CmsTerm,
+  type CmsPost,
+  type PostTypeField,
+  type CmsAreaSummary,
+  type PostWidgetAssignment,
+} from '../stores/useCmsContentStore';
 import { useAuthStore } from '@/stores/auth';
 import CmsImagePicker from '../components/CmsImagePicker.vue';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
@@ -718,6 +794,16 @@ interface PostForm {
   seo_excluded: boolean;
   layout_id: string;
   style_id: string;
+  /** Non-primary content areas, keyed by area name. The first content area
+   *  stays in content_html; every additional one lives here. */
+  content_blocks: Record<string, ContentBlock>;
+  /** Per-page widget overrides for the layout's widget-capable areas. */
+  page_widgets: PostWidgetAssignment[];
+}
+
+interface ContentBlock {
+  content_html: string;
+  source_css: string;
 }
 
 const form = ref<PostForm>({
@@ -748,6 +834,8 @@ const form = ref<PostForm>({
   seo_excluded: false,
   layout_id: '',
   style_id: '',
+  content_blocks: {},
+  page_widgets: [],
 });
 
 const schemaJsonText = ref('');
@@ -930,6 +1018,87 @@ const parentCandidates = computed(() => {
   return items.filter((post) => post.type === form.value.type && post.id !== id.value);
 });
 
+// ── Layout-area-driven content blocks + page widgets (S55.2) ──────────────
+const selectedLayout = computed(() =>
+  (store.layouts?.items ?? []).find((layout) => layout.id === form.value.layout_id) ?? null,
+);
+const layoutAreas = computed<CmsAreaSummary[]>(() => selectedLayout.value?.areas ?? []);
+
+// The first `content` area binds to the existing single editor (→ content_html);
+// every additional `content` area gets its own collapsible block editor.
+const contentAreas = computed(() => layoutAreas.value.filter((area) => area.type === 'content'));
+const additionalContentAreas = computed(() => contentAreas.value.slice(1));
+
+// Label the primary content editor with the layout's first content-area name so
+// the admin knows which slot it maps to; falls back to the generic "Content".
+const primaryContentLabel = computed(() => {
+  const primary = contentAreas.value[0];
+  return primary ? (primary.label || primary.name) : '';
+});
+
+// Only dedicated `page-widget` areas take a per-page widget override (falling
+// back to the layout's own widget when left unset). Chrome areas
+// (header/footer/vue) are layout-level and never overridden per page.
+const widgetAreas = computed(() => layoutAreas.value.filter((area) => area.type === 'page-widget'));
+
+// Keep a content-block entry present for each additional content area so the
+// editors always have a model to bind to.
+watch(additionalContentAreas, (areas) => {
+  for (const area of areas) {
+    if (!form.value.content_blocks[area.name]) {
+      form.value.content_blocks[area.name] = { content_html: '', source_css: '' };
+    }
+  }
+}, { immediate: true });
+
+function pageWidgetIdFor(areaName: string): string {
+  return form.value.page_widgets.find((assignment) => assignment.area_name === areaName)?.widget_id ?? '';
+}
+
+function setPageWidget(areaName: string, widgetId: string) {
+  const existing = form.value.page_widgets.findIndex((assignment) => assignment.area_name === areaName);
+  if (!widgetId) {
+    // Clearing the override → drop the row so the layout default applies.
+    if (existing >= 0) form.value.page_widgets.splice(existing, 1);
+    return;
+  }
+  const assignment: PostWidgetAssignment = {
+    widget_id: widgetId,
+    area_name: areaName,
+    sort_order: existing >= 0 ? form.value.page_widgets[existing].sort_order : 0,
+    required_access_level_ids: existing >= 0 ? form.value.page_widgets[existing].required_access_level_ids : [],
+  };
+  if (existing >= 0) form.value.page_widgets[existing] = assignment;
+  else form.value.page_widgets.push(assignment);
+}
+
+// Map the admin GET post `content_blocks` dict (keyed by area) into the form's
+// per-area {content_html, source_css} model.
+function loadContentBlocks(
+  blocks: NonNullable<CmsPost['content_blocks']> | undefined,
+): Record<string, ContentBlock> {
+  const result: Record<string, ContentBlock> = {};
+  for (const [areaName, block] of Object.entries(blocks ?? {})) {
+    result[areaName] = {
+      content_html: block.content_html ?? '',
+      source_css: block.source_css ?? '',
+    };
+  }
+  return result;
+}
+
+// Map the admin GET post `page_assignments` list into the form's widget overrides.
+function loadPageWidgets(
+  assignments: NonNullable<CmsPost['page_assignments']> | undefined,
+): PostWidgetAssignment[] {
+  return (assignments ?? []).map((assignment) => ({
+    widget_id: assignment.widget_id,
+    area_name: assignment.area_name,
+    sort_order: assignment.sort_order ?? 0,
+    required_access_level_ids: assignment.required_access_level_ids ?? [],
+  }));
+}
+
 // ── SERP preview ────────────────────────────────────────────────────────
 const serpTitle = computed(() => (form.value.meta_title || form.value.title || '').trim());
 const serpUrl = computed(() => {
@@ -1048,6 +1217,14 @@ async function save() {
     seo_excluded: form.value.seo_excluded,
     layout_id: form.value.layout_id || null,
     style_id: form.value.style_id || null,
+    // Non-primary content areas ride the post payload as an array; the primary
+    // area is excluded (it stays in content_html).
+    content_blocks: additionalContentAreas.value.map((area, index) => ({
+      area_name: area.name,
+      content_html: form.value.content_blocks[area.name]?.content_html || null,
+      source_css: form.value.content_blocks[area.name]?.source_css || null,
+      sort_order: index,
+    })),
   };
   if (id.value) payload.id = id.value;
 
@@ -1055,6 +1232,8 @@ async function save() {
   const postId = saved?.id ?? id.value;
   if (postId) {
     await store.assignTerms(postId, selectedTermIds.value);
+    // Page-widget overrides are saved as a separate PUT, mirroring terms.
+    await store.savePostWidgets(postId, form.value.page_widgets);
   }
   if (saved && isNew.value) {
     router.replace({ name: 'cms-post-edit', params: { id: saved.id } });
@@ -1067,6 +1246,7 @@ onMounted(async () => {
     store.fetchTermTypes(),
     store.fetchLayouts({ per_page: 100 }),
     store.fetchStyles({ per_page: 100 }),
+    store.fetchWidgets({ per_page: 200 }),
   ]);
 
   // For a new post, honor the ?type= the list passed (post vs page); otherwise
@@ -1119,6 +1299,8 @@ onMounted(async () => {
         seo_excluded: post.seo_excluded ?? false,
         layout_id: post.layout_id ?? '',
         style_id: post.style_id ?? '',
+        content_blocks: loadContentBlocks(post.content_blocks),
+        page_widgets: loadPageWidgets(post.page_assignments),
       };
       previewToken.value = (post as Record<string, unknown>).preview_token as string ?? '';
       schemaJsonText.value = post.schema_json ? JSON.stringify(post.schema_json, null, 2) : '';
@@ -1165,6 +1347,15 @@ textarea.field-input { resize: vertical; }
 .type-fields { border-top: 1px solid #e5e7eb; padding-top: 12px; margin-bottom: 16px; }
 
 .content-block-section { margin-bottom: 24px; }
+.content-block-extra { border-top: 1px solid #e5e7eb; padding-top: 12px; }
+.content-block-extra__title { cursor: pointer; font-size: 0.85rem; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+
+.page-widgets-section { margin: 20px 0; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+.page-widgets-section__title { cursor: pointer; font-size: 0.9rem; font-weight: 600; color: #374151; padding: 6px 0; }
+.page-widgets-hint { font-size: 0.78rem; color: #6b7280; margin: 4px 0 10px; }
+.page-widget-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.page-widget-row__area { font-size: 0.8rem; padding: 2px 8px; border-radius: 10px; background: #dcfce7; color: #166534; white-space: nowrap; min-width: 110px; }
+.page-widget-row .field-input { flex: 1; min-width: 150px; }
 .content-toolbar { display: flex; gap: 0.5rem; padding: 6px 0; }
 .tabs { display: flex; gap: 0; margin-bottom: 0; border-bottom: 1px solid #e5e7eb; }
 .tab-btn { padding: 0.5rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-size: 0.9rem; color: #6b7280; }

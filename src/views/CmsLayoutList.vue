@@ -99,6 +99,7 @@
           >
             Active
           </th>
+          <th>Default</th>
           <th
             class="sortable"
             @click="sort('updated_at')"
@@ -133,11 +134,26 @@
             >{{ area.name }}</span>
           </td>
           <td>{{ layout.is_active ? 'Yes' : 'No' }}</td>
+          <td @click.stop>
+            <span
+              v-if="layout.is_default"
+              class="badge badge--default"
+              data-testid="layout-default-badge"
+            >Default</span>
+            <button
+              v-else-if="canManage"
+              class="btn btn--sm"
+              data-testid="layout-make-default-btn"
+              @click="setDefault(layout.id)"
+            >
+              Make default
+            </button>
+          </td>
           <td>{{ fmtDate(layout.updated_at) }}</td>
         </tr>
         <tr v-if="!items.length && !store.loading">
           <td
-            colspan="6"
+            colspan="7"
             class="cms-table__empty"
           >
             No layouts yet.
@@ -199,6 +215,10 @@ function sort(col: string) {
   if (sortBy.value === col) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
   else { sortBy.value = col; sortDir.value = 'asc'; }
   fetch();
+}
+
+async function setDefault(id: string) {
+  await store.setDefaultLayout(id);
 }
 
 function toggleAll() {

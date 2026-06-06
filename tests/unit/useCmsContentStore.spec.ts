@@ -87,6 +87,35 @@ describe('useCmsContentStore', () => {
     expect(api.put).toHaveBeenCalledWith('/admin/cms/posts/p1/terms', { term_ids: ['t1', 't2'] });
   });
 
+  it('bulk-assigns a layout to many posts through the dedicated endpoint (S54)', async () => {
+    (api.post as any).mockResolvedValueOnce({ updated: 2 });
+    const store = useCmsContentStore();
+    await store.bulkAssignLayout(['p1', 'p2'], 'lay-9');
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/assign-layout', {
+      ids: ['p1', 'p2'],
+      layout_id: 'lay-9',
+    });
+  });
+
+  it('bulk-clears the layout (null) through the assign-layout endpoint', async () => {
+    (api.post as any).mockResolvedValueOnce({ updated: 2 });
+    const store = useCmsContentStore();
+    await store.bulkAssignLayout(['p1', 'p2'], null);
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/assign-layout', {
+      ids: ['p1', 'p2'],
+      layout_id: null,
+    });
+  });
+
+  it('bulk-unassigns categories through the dedicated endpoint', async () => {
+    (api.post as any).mockResolvedValueOnce({ updated: 2 });
+    const store = useCmsContentStore();
+    await store.bulkUnassignCategory(['p1', 'p2']);
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/unassign-category', {
+      ids: ['p1', 'p2'],
+    });
+  });
+
   it('changes status through the publish endpoint when publishing', async () => {
     (api.post as any).mockResolvedValueOnce({ id: 'p1', status: 'published' });
     const store = useCmsContentStore();

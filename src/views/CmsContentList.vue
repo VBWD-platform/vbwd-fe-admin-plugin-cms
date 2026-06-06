@@ -174,12 +174,35 @@
           <option value="">
             + {{ $t('cms.assignCategory', 'Assign to a category') }}…
           </option>
+          <option value="__unset__">
+            ⊘ {{ $t('cms.unsetCategory', 'Unset category') }}
+          </option>
           <option
             v-for="cat in categoryTerms"
             :key="cat.id"
             :value="cat.id"
           >
             {{ cat.name }}
+          </option>
+        </select>
+        <select
+          v-if="canManage"
+          class="bulk-select"
+          data-testid="bulk-assign-layout"
+          @change="onBulkAssignLayout($event)"
+        >
+          <option value="">
+            + {{ $t('cms.assignLayout', 'Assign layout') }}…
+          </option>
+          <option value="__unset__">
+            ⊘ {{ $t('cms.unsetLayout', 'Unset layout') }}
+          </option>
+          <option
+            v-for="layout in (store.layouts?.items ?? [])"
+            :key="layout.id"
+            :value="layout.id"
+          >
+            {{ layout.name }}
           </option>
         </select>
         <button
@@ -539,14 +562,32 @@ async function bulkSearchable(searchable: boolean) {
   load();
 }
 
+const BULK_UNSET = '__unset__';
+
 async function onBulkAssignCategory(event: Event) {
   const select = event.target as HTMLSelectElement;
-  const termId = select.value;
+  const value = select.value;
   select.value = '';
-  if (!termId) return;
+  if (!value) return;
   const ids = await bulk.resolveIds();
   if (!ids.length) return;
-  await store.bulkAssignTerm(ids, termId);
+  if (value === BULK_UNSET) {
+    await store.bulkUnassignCategory(ids);
+  } else {
+    await store.bulkAssignTerm(ids, value);
+  }
+  bulk.clear();
+  load();
+}
+
+async function onBulkAssignLayout(event: Event) {
+  const select = event.target as HTMLSelectElement;
+  const value = select.value;
+  select.value = '';
+  if (!value) return;
+  const ids = await bulk.resolveIds();
+  if (!ids.length) return;
+  await store.bulkAssignLayout(ids, value === BULK_UNSET ? null : value);
   bulk.clear();
   load();
 }
@@ -630,7 +671,7 @@ onMounted(async () => {
 
 defineExpose({
   onImportFile, exportContent, bulkDelete, bulkStatus, bulkSearchable,
-  onBulkAssignCategory, bulkExport, sort, load, bulk,
+  onBulkAssignCategory, onBulkAssignLayout, bulkExport, sort, load, bulk,
 });
 </script>
 

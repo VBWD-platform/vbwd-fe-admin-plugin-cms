@@ -31,6 +31,13 @@ const TAGS = [
   { id: 'tag-1', term_type: 'tag', slug: 'hot', name: 'Hot', parent_id: null, seo_excluded: false, sort_order: 0 },
 ];
 
+const LAYOUTS = {
+  items: [
+    { id: 'lay-1', slug: 'default', name: 'Default Layout' },
+    { id: 'lay-2', slug: 'wide', name: 'Wide Layout' },
+  ],
+};
+
 const POSTS = {
   items: [
     { id: 'po-1', type: 'post', slug: 'launch', title: 'Launch', status: 'published', language: 'en', updated_at: '2026-06-01T00:00:00Z', term_ids: ['cat-1', 'tag-1'] },
@@ -61,6 +68,7 @@ function primeApi(list: unknown) {
       if (type === 'tag') return Promise.resolve(TAGS);
       return Promise.resolve([]);
     }
+    if (url === '/admin/cms/layouts') return Promise.resolve(LAYOUTS);
     return Promise.resolve({});
   });
 }
@@ -192,6 +200,89 @@ describe('CmsContentList.vue (shared list)', () => {
     await wrapper.find('[data-testid="bulk-unsearchable"]').trigger('click');
     await flushPromises();
     expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/searchable', { ids: ['po-1'], searchable: false });
+  });
+
+  it('renders the bulk assign-layout select with the fetched layouts (S54)', async () => {
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    const select = wrapper.find('[data-testid="bulk-assign-layout"]');
+    expect(select.exists()).toBe(true);
+    const optionValues = select.findAll('option').map((o) => o.attributes('value'));
+    expect(optionValues).toContain('lay-1');
+    expect(optionValues).toContain('lay-2');
+  });
+
+  it('choosing a layout assigns it to the selected posts then clears + reloads (S54)', async () => {
+    (api.post as any).mockResolvedValue({ updated: 1 });
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    const select = wrapper.find('[data-testid="bulk-assign-layout"]');
+    await select.setValue('lay-2');
+    await flushPromises();
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/assign-layout', {
+      ids: ['po-1'],
+      layout_id: 'lay-2',
+    });
+    // selection cleared after the assign
+    expect(wrapper.find('[data-testid="bulk-assign-layout"]').exists()).toBe(false);
+  });
+
+  it('choosing the empty bulk-assign-layout option makes no call (S54)', async () => {
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    (api.post as any).mockClear();
+    await wrapper.find('[data-testid="bulk-assign-layout"]').setValue('');
+    await flushPromises();
+    expect(api.post).not.toHaveBeenCalledWith(
+      '/admin/cms/posts/bulk/assign-layout',
+      expect.anything(),
+    );
+  });
+
+  it('renders an "Unset" option in both bulk-assign selects', async () => {
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    const layoutValues = wrapper
+      .find('[data-testid="bulk-assign-layout"]')
+      .findAll('option')
+      .map((o) => o.attributes('value'));
+    const categoryValues = wrapper
+      .find('[data-testid="bulk-assign-category"]')
+      .findAll('option')
+      .map((o) => o.attributes('value'));
+    expect(layoutValues).toContain('__unset__');
+    expect(categoryValues).toContain('__unset__');
+  });
+
+  it('choosing Unset layout clears the layout on selected posts (null) then reloads', async () => {
+    (api.post as any).mockResolvedValue({ updated: 1 });
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    await wrapper.find('[data-testid="bulk-assign-layout"]').setValue('__unset__');
+    await flushPromises();
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/assign-layout', {
+      ids: ['po-1'],
+      layout_id: null,
+    });
+    expect(wrapper.find('[data-testid="bulk-assign-layout"]').exists()).toBe(false);
+  });
+
+  it('choosing Unset category removes categories from selected posts then reloads', async () => {
+    (api.post as any).mockResolvedValue({ updated: 1 });
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    await wrapper.find('[data-testid="bulk-assign-category"]').setValue('__unset__');
+    await flushPromises();
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/unassign-category', {
+      ids: ['po-1'],
+    });
+    expect(wrapper.find('[data-testid="bulk-assign-category"]').exists()).toBe(false);
   });
 
   it('renders the language / category / layout / style / date filters', async () => {
