@@ -44,6 +44,20 @@ export interface CmsImage {
   updated_at: string;
 }
 
+export interface CmsTerm {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export interface SeoSettings {
+  robots_txt: string;
+  sitemap_include_pages: boolean;
+  sitemap_excluded_slugs: string[];
+  sitemap_include_terms: string[];
+  sitemap_exclude_terms: string[];
+}
+
 export interface PaginatedResult<T> {
   items: T[];
   total: number;
@@ -646,6 +660,24 @@ export const useCmsAdminStore = defineStore('cms-admin', {
     async regenerateSeo(): Promise<number> {
       const res = await api.post<{ regenerated: number }>('/admin/cms/seo/regenerate', {});
       return res.regenerated;
+    },
+
+    // Editable robots.txt + sitemap filtering config (S56). The five keys are
+    // stored in the cms config blob server-side; PUT accepts a partial body and
+    // merges it (does not clobber the other keys).
+    async fetchSeoSettings(): Promise<SeoSettings> {
+      return await api.get<SeoSettings>('/admin/cms/seo/settings');
+    },
+
+    async saveSeoSettings(payload: Partial<SeoSettings>): Promise<void> {
+      await api.put<SeoSettings>('/admin/cms/seo/settings', payload);
+    },
+
+    // Terms used to populate the sitemap include/exclude pickers (option value
+    // = term slug). Mirrors the term fetch used by TermManager.
+    async fetchTerms(type: string): Promise<CmsTerm[]> {
+      const res = await api.get<any>('/admin/cms/terms', { params: { type } });
+      return Array.isArray(res) ? res : (res.items ?? []);
     },
   },
 });
