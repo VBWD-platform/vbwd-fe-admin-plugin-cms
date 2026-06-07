@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
+import { defineComponent, ref } from 'vue';
 import { api } from '@/api';
 import { configureAuthStore, useAuthStore } from '@/stores/auth';
 import TermManager from '../../src/views/TermManager.vue';
@@ -15,6 +16,24 @@ vi.mock('@/api', () => ({
     delete: vi.fn(),
   },
 }));
+
+const caps = ref<Record<string, { can_export: boolean; can_import: boolean; can_export_pii: boolean; supported_formats: string[] }>>({});
+const loadManifest = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('@/composables/useDataExchangeManifest', () => ({
+  useDataExchangeManifest: () => ({
+    load: loadManifest,
+    capabilitiesFor: (key: string) =>
+      caps.value[key] ?? { can_export: false, can_import: false, can_export_pii: false, supported_formats: ['json'] },
+  }),
+}));
+
+const IecStub = defineComponent({
+  name: 'ImportExportControls',
+  props: ['api', 'entityKey', 'selectedIds', 'canExport', 'canImport', 'canExportPii', 'isSuperadmin', 'supportedFormats'],
+  emits: ['refresh'],
+  template: '<div data-testid="iec-stub" />',
+});
 
 const i18n = createI18n({
   legacy: false,
@@ -48,7 +67,9 @@ function primeApi() {
 }
 
 async function mountManager(): Promise<VueWrapper> {
-  const wrapper = mount(TermManager, { global: { plugins: [i18n] } });
+  const wrapper = mount(TermManager, {
+    global: { plugins: [i18n], stubs: { ImportExportControls: IecStub } },
+  });
   await flushPromises();
   return wrapper;
 }
@@ -66,6 +87,7 @@ describe('TermManager.vue', () => {
       token: 'test-token',
     });
     vi.clearAllMocks();
+    caps.value = {};
     primeApi();
   });
 
@@ -165,45 +187,28 @@ describe('TermManager.vue', () => {
     expect(api.delete).toHaveBeenCalledWith('/admin/cms/terms/cat-1');
   });
 
-  it('exports the active term type via the export endpoint', async () => {
-    (api.get as any).mockImplementation((url: string, opts?: any) => {
-      if (url === '/admin/cms/term-types') return Promise.resolve(TERM_TYPES);
-      if (url === '/admin/cms/terms') {
-        const type = opts?.params?.type;
-        if (type === 'category') return Promise.resolve(CATEGORIES);
-        return Promise.resolve([]);
-      }
-      if (url === '/admin/cms/terms/export') return Promise.resolve({ terms: CATEGORIES });
-      return Promise.resolve({});
-    });
+  // ── Unified import/export only (legacy term export/import buttons retired) ──
+  it('renders the unified ImportExportControls wired to entity-key="cms_terms"', async () => {
+    caps.value = { cms_terms: { can_export: true, can_import: true, can_export_pii: false, supported_formats: ['json'] } };
     const wrapper = await mountManager();
-
-    await wrapper.find('[data-testid="term-export"]').trigger('click');
-    await flushPromises();
-
-    expect(api.get).toHaveBeenCalledWith(
-      '/admin/cms/terms/export',
-      expect.objectContaining({ params: { type: 'category' } }),
-    );
+    const control = wrapper.findComponent(IecStub);
+    expect(control.exists()).toBe(true);
+    expect(control.props('entityKey')).toBe('cms_terms');
+    expect(control.props('canExport')).toBe(true);
+    expect(control.props('canImport')).toBe(true);
   });
 
-  it('imports an uploaded JSON file then refreshes the list', async () => {
-    (api.post as any).mockResolvedValue({ created: 2, updated: 1 });
+  it('hides the unified control when no cms_terms capabilities are granted', async () => {
+    caps.value = { cms_terms: { can_export: false, can_import: false, can_export_pii: false, supported_formats: ['json'] } };
     const wrapper = await mountManager();
-    vi.clearAllMocks();
-    primeApi();
+    expect(wrapper.findComponent(IecStub).exists()).toBe(false);
+  });
 
-    const file = new File([JSON.stringify({ terms: CATEGORIES })], 'terms.json', { type: 'application/json' });
-    const input = wrapper.find('[data-testid="term-import-input"]');
-    Object.defineProperty(input.element, 'files', { value: [file], configurable: true });
-    await input.trigger('change');
-    await flushPromises();
-
-    expect(api.post).toHaveBeenCalledWith('/admin/cms/terms/import', expect.anything());
-    // list refreshed after import
-    expect(api.get).toHaveBeenCalledWith(
-      '/admin/cms/terms',
-      expect.objectContaining({ params: { type: 'category' } }),
-    );
+  it('no longer renders the legacy term export / import buttons', async () => {
+    caps.value = { cms_terms: { can_export: true, can_import: true, can_export_pii: false, supported_formats: ['json'] } };
+    const wrapper = await mountManager();
+    expect(wrapper.find('[data-testid="term-export"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="term-import"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="term-import-input"]').exists()).toBe(false);
   });
 });

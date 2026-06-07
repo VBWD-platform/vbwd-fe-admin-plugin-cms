@@ -10,13 +10,6 @@
     <slot name="actions" />
 
     <button
-      class="btn"
-      data-testid="bulk-export"
-      @click="$emit('export')"
-    >
-      {{ $t('cms.exportSelected', 'Export selected') }}
-    </button>
-    <button
       v-if="canManage"
       class="btn btn--danger"
       data-testid="bulk-delete"
@@ -45,7 +38,6 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  (e: 'export'): void;
   (e: 'delete'): void;
   (e: 'clear'): void;
 }>();

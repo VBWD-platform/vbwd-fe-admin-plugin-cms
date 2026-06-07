@@ -150,27 +150,6 @@ interface CmsAdminState {
   selectedStyleIds: Set<string>;
 }
 
-async function _downloadExport(path: string, filename: string, ids: string[]) {
-  const { useAuthStore } = await import('@/stores/auth');
-  const auth = useAuthStore();
-  const base = (import.meta.env.VITE_API_URL as string) || '/api/v1';
-  const res = await fetch(`${base}${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
-    },
-    body: JSON.stringify({ ids }),
-  });
-  if (!res.ok) throw new Error(`Export failed: ${res.statusText}`);
-  const blob = await res.blob();
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
 export const useCmsAdminStore = defineStore('cms-admin', {
   state: (): CmsAdminState => ({
     categories: [],
@@ -267,16 +246,6 @@ export const useCmsAdminStore = defineStore('cms-admin', {
     async bulkAction(ids: string[], action: string, params: Record<string, unknown> = {}) {
       await api.post<any>('/admin/cms/pages/bulk', { ids, action, params });
       this.selectedPageIds.clear();
-      await this.fetchPages();
-    },
-
-    async exportPages(ids: string[]) {
-      await _downloadExport('/admin/cms/pages/export', ids.length === 1 ? 'cms-page.json' : 'cms-pages.json', ids);
-    },
-
-    async importPages(file: File) {
-      const payload = JSON.parse(await file.text());
-      await api.post<any>('/admin/cms/pages/import', payload);
       await this.fetchPages();
     },
 
@@ -409,16 +378,6 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       return ids;
     },
 
-    async exportLayouts(ids: string[]) {
-      await _downloadExport('/admin/cms/layouts/export', ids.length === 1 ? 'cms-layout.json' : 'cms-layouts.zip', ids);
-    },
-
-    async importLayout(file: File) {
-      const payload = JSON.parse(await file.text());
-      await api.post<any>('/admin/cms/layouts/import', payload);
-      await this.fetchLayouts();
-    },
-
     // ── default-layout management (mirrors setDefaultStyle) ─────────────────
     async setDefaultLayout(id: string) {
       await api.post<any>(`/admin/cms/layouts/${id}/default`);
@@ -489,31 +448,6 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       await this.fetchWidgets();
     },
 
-    async exportWidgets(ids: string[]) {
-      await _downloadExport('/admin/cms/widgets/export', ids.length === 1 ? 'cms-widget.json' : 'cms-widgets.zip', ids);
-    },
-
-    async importWidget(
-      file: File,
-      mode: 'replace' | 'copy' = 'copy',
-    ): Promise<{ imported?: number; skipped?: number; failed?: number; errors?: { file: string; error: string }[] }> {
-      const isZip = /\.zip$/i.test(file.name) || file.type === 'application/zip';
-      let result: any;
-      if (isZip) {
-        const body = await file.arrayBuffer();
-        result = await api.post<any>(
-          `/admin/cms/widgets/import?mode=${mode}`,
-          body,
-          { headers: { 'Content-Type': 'application/zip' } },
-        );
-      } else {
-        const payload = JSON.parse(await file.text());
-        result = await api.post<any>(`/admin/cms/widgets/import?mode=${mode}`, payload);
-      }
-      await this.fetchWidgets();
-      return result ?? {};
-    },
-
     // ── Styles ────────────────────────────────────────────────────────────────
 
     async fetchStyles(params: Record<string, unknown> = {}) {
@@ -568,31 +502,6 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       await this.fetchStyles();
     },
 
-    async exportStyles(ids: string[]) {
-      await _downloadExport('/admin/cms/styles/export', ids.length === 1 ? 'cms-style.json' : 'cms-styles.zip', ids);
-    },
-
-    async importStyle(
-      file: File,
-      mode: 'replace' | 'copy' = 'copy',
-    ): Promise<{ imported?: number; skipped?: number; failed?: number; errors?: { file: string; error: string }[] }> {
-      const isZip = /\.zip$/i.test(file.name) || file.type === 'application/zip';
-      let result: any;
-      if (isZip) {
-        const body = await file.arrayBuffer();
-        result = await api.post<any>(
-          `/admin/cms/styles/import?mode=${mode}`,
-          body,
-          { headers: { 'Content-Type': 'application/zip' } },
-        );
-      } else {
-        const payload = JSON.parse(await file.text());
-        result = await api.post<any>(`/admin/cms/styles/import?mode=${mode}`, payload);
-      }
-      await this.fetchStyles();
-      return result ?? {};
-    },
-
     // ── default-style management (sprint 26) ───────────────────────────────
     async setDefaultStyle(id: string) {
       await api.post<any>(`/admin/cms/styles/${id}/default`);
@@ -602,48 +511,6 @@ export const useCmsAdminStore = defineStore('cms-admin', {
     async clearDefaultStyle() {
       await api.delete<any>('/admin/cms/styles/default');
       await this.fetchStyles();
-    },
-
-    // ── CMS Import / Export ──────────────────────────────────────────────────
-
-    async exportCms(sections: string[]): Promise<void> {
-      const { useAuthStore } = await import('@/stores/auth');
-      const auth = useAuthStore();
-      const base = (import.meta.env.VITE_API_URL as string) || '/api/v1';
-      const res = await fetch(`${base}/admin/cms/export`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
-        },
-        body: JSON.stringify({ sections }),
-      });
-      if (!res.ok) throw new Error(`Export failed: ${res.statusText}`);
-      const blob = await res.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'cms-export.zip';
-      a.click();
-      URL.revokeObjectURL(a.href);
-    },
-
-    async importCms(file: File, strategy: string): Promise<{ imported: Record<string, number>; errors: string[] }> {
-      const { useAuthStore } = await import('@/stores/auth');
-      const auth = useAuthStore();
-      const base = (import.meta.env.VITE_API_URL as string) || '/api/v1';
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('strategy', strategy);
-      const res = await fetch(`${base}/admin/cms/import`, {
-        method: 'POST',
-        headers: {
-          ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
-        },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? `Import failed: ${res.statusText}`);
-      return data;
     },
 
     // Delete every prerendered ${VAR_DIR}/seo/*.html. nginx serves prerendered

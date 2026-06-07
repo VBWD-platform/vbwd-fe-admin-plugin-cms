@@ -10,6 +10,20 @@
         >
           {{ $t('cms.bulkDelete') }} ({{ store.selectedImageIds.size }})
         </button>
+        <!-- Unified data-exchange controls (esp. "Export selected"); the
+             bespoke upload/bulk buttons coexist for backward compatibility. -->
+        <ImportExportControls
+          v-if="showImportExport"
+          :api="dataExchangeApi"
+          entity-key="cms_images"
+          :selected-ids="selectedIds"
+          :can-export="capabilities.can_export"
+          :can-import="capabilities.can_import"
+          :can-export-pii="capabilities.can_export_pii"
+          :is-superadmin="isSuperadmin"
+          :supported-formats="capabilities.supported_formats"
+          @refresh="load"
+        />
         <label
           v-if="canManage"
           class="create-btn"
@@ -213,10 +227,24 @@ import { ref, computed, onMounted } from 'vue';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
 import { useAuthStore } from '@/stores/auth';
 import type { CmsImage } from '../stores/useCmsAdminStore';
+import { ImportExportControls } from 'vbwd-view-component';
+import { createDataExchangeApi } from '@/api/dataExchangeApi';
+import { useDataExchangeManifest } from '@/composables/useDataExchangeManifest';
 
 const store = useCmsAdminStore();
 const authStore = useAuthStore();
 const canManage = computed(() => authStore.hasPermission('cms.images.manage'));
+
+// ── Unified data-exchange controls ─────────────────────────────────────────
+const ENTITY_KEY = 'cms_images';
+const dataExchangeApi = createDataExchangeApi();
+const isSuperadmin = computed(() => authStore.isSuperAdmin);
+const { load: loadManifest, capabilitiesFor } = useDataExchangeManifest();
+const capabilities = computed(() => capabilitiesFor(ENTITY_KEY));
+const showImportExport = computed(
+  () => capabilities.value.can_export || capabilities.value.can_import,
+);
+const selectedIds = computed(() => [...store.selectedImageIds]);
 const search = ref('');
 const currentPage = ref(1);
 let searchTimer: ReturnType<typeof setTimeout>;
@@ -292,7 +320,10 @@ function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
 
-onMounted(load);
+onMounted(() => {
+  void loadManifest();
+  load();
+});
 </script>
 
 <style scoped>

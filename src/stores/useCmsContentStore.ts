@@ -337,19 +337,5 @@ export const useCmsContentStore = defineStore('cms-content', {
       await api.delete(`/admin/cms/terms/${id}`);
       if (termType) await this.fetchTerms(termType);
     },
-
-    // ── Taxonomy import / export (VBWD-standard JSON) ─────────────────────
-    /** Fetch the export payload for a term type (caller triggers the download). */
-    async exportTerms(termType: string): Promise<unknown> {
-      return api.get<unknown>('/admin/cms/terms/export', { params: { type: termType } });
-    },
-
-    /**
-     * Import terms from a VBWD-standard JSON payload. Returns the backend's
-     * {created, updated} summary; callers refresh the list afterwards.
-     */
-    async importTerms(payload: unknown): Promise<{ created: number; updated: number }> {
-      return api.post<{ created: number; updated: number }>('/admin/cms/terms/import', payload);
-    },
   },
 });

@@ -10,20 +10,19 @@
           class="cms-list__search"
           @input="fetchDebounced"
         >
-        <button
-          v-if="canManage"
-          class="btn"
-          @click="importInput?.click()"
-        >
-          Import
-        </button>
-        <input
-          ref="importInput"
-          type="file"
-          accept=".json"
-          style="display:none"
-          @change="onImport"
-        >
+        <!-- Unified data-exchange controls — the only import/export path. -->
+        <ImportExportControls
+          v-if="showImportExport"
+          :api="dataExchangeApi"
+          entity-key="cms_layouts"
+          :selected-ids="selectedIds"
+          :can-export="capabilities.can_export"
+          :can-import="capabilities.can_import"
+          :can-export-pii="capabilities.can_export_pii"
+          :is-superadmin="isSuperadmin"
+          :supported-formats="capabilities.supported_formats"
+          @refresh="fetch"
+        />
         <button
           v-if="canManage"
           class="btn btn--primary"
@@ -54,12 +53,6 @@
         @click="bulkSetActive(false)"
       >
         Deactivate
-      </button>
-      <button
-        class="btn"
-        @click="exportSelected"
-      >
-        Export selected
       </button>
       <button
         v-if="canManage"
@@ -184,12 +177,24 @@
 import { ref, computed, onMounted } from 'vue';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
 import { useAuthStore } from '@/stores/auth';
-
-const importInput = ref<HTMLInputElement | null>(null);
+import { ImportExportControls } from 'vbwd-view-component';
+import { createDataExchangeApi } from '@/api/dataExchangeApi';
+import { useDataExchangeManifest } from '@/composables/useDataExchangeManifest';
 
 const store = useCmsAdminStore();
 const authStore = useAuthStore();
 const canManage = computed(() => authStore.hasPermission('cms.layouts.manage'));
+
+// ── Unified data-exchange controls ─────────────────────────────────────────
+const ENTITY_KEY = 'cms_layouts';
+const dataExchangeApi = createDataExchangeApi();
+const isSuperadmin = computed(() => authStore.isSuperAdmin);
+const { load: loadManifest, capabilitiesFor } = useDataExchangeManifest();
+const capabilities = computed(() => capabilitiesFor(ENTITY_KEY));
+const showImportExport = computed(
+  () => capabilities.value.can_export || capabilities.value.can_import,
+);
+const selectedIds = computed(() => [...store.selectedLayoutIds]);
 const query = ref('');
 const page = ref(1);
 const sortBy = ref('sort_order');
@@ -241,27 +246,14 @@ async function bulkSetActive(active: boolean) {
   await store.bulkSetLayoutActive([...store.selectedLayoutIds], active);
 }
 
-async function exportSelected() {
-  await store.exportLayouts([...store.selectedLayoutIds]);
-}
-
-async function onImport(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  try {
-    await store.importLayout(file);
-  } catch (err: any) {
-    alert(err?.message ?? 'Import failed');
-  } finally {
-    (e.target as HTMLInputElement).value = '';
-  }
-}
-
 function fmtDate(s: string) {
   return s ? new Date(s).toLocaleDateString() : '';
 }
 
-onMounted(fetch);
+onMounted(() => {
+  void loadManifest();
+  fetch();
+});
 </script>
 
 <style scoped>

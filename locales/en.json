@@ -27,8 +27,6 @@
     "translationGroupHint": "Shared id across translations (hreflang)",
     "terms": "Terms",
     "termManager": "Taxonomy",
-    "export": "Export",
-    "import": "Import",
     "newTerm": "New Term",
     "noTerms": "No terms yet.",
     "noindex": "noindex",

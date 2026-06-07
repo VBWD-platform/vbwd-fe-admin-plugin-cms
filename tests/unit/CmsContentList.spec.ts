@@ -3,6 +3,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
 import { createRouter, createMemoryHistory, type Router } from 'vue-router';
+import { defineComponent, ref } from 'vue';
 import { api } from '@/api';
 import { configureAuthStore, useAuthStore } from '@/stores/auth';
 import CmsContentList from '../../src/views/CmsContentList.vue';
@@ -16,6 +17,24 @@ vi.mock('@/api', () => ({
     delete: vi.fn(),
   },
 }));
+
+const cmsCapabilities = ref<Record<string, { can_export: boolean; can_import: boolean; can_export_pii: boolean; supported_formats: string[] }>>({});
+const loadManifest = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('@/composables/useDataExchangeManifest', () => ({
+  useDataExchangeManifest: () => ({
+    load: loadManifest,
+    capabilitiesFor: (key: string) =>
+      cmsCapabilities.value[key] ?? { can_export: false, can_import: false, can_export_pii: false, supported_formats: ['json'] },
+  }),
+}));
+
+const IecStub = defineComponent({
+  name: 'ImportExportControls',
+  props: ['api', 'entityKey', 'selectedIds', 'filterState', 'canExport', 'canImport', 'canExportPii', 'isSuperadmin', 'supportedFormats', 'allowExportAll', 'allowExportSelected', 'allowExportFiltered', 'allowImport'],
+  emits: ['refresh'],
+  template: '<div data-testid="iec-stub" />',
+});
 
 const i18n = createI18n({
   legacy: false,
@@ -91,7 +110,7 @@ async function mountList(type: 'post' | 'page', list: unknown): Promise<{ wrappe
   await router.isReady();
   const wrapper = mount(CmsContentList, {
     props: { type },
-    global: { plugins: [i18n, router] },
+    global: { plugins: [i18n, router], stubs: { ImportExportControls: IecStub } },
   });
   await flushPromises();
   return { wrapper, router };
@@ -110,6 +129,7 @@ describe('CmsContentList.vue (shared list)', () => {
       token: 'test-token',
     });
     vi.clearAllMocks();
+    cmsCapabilities.value = {};
   });
 
   it('fetches posts filtered to type=post', async () => {
@@ -316,71 +336,52 @@ describe('CmsContentList.vue (shared list)', () => {
     expect(sorted).toBeTruthy();
   });
 
-  it('export triggers a GET download scoped to the type', async () => {
-    const blob = new Blob(['{}'], { type: 'application/json' });
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      { ok: true, blob: () => Promise.resolve(blob) } as unknown as Response,
-    );
-    // jsdom/happy-dom URL helpers
-    (URL as any).createObjectURL = vi.fn(() => 'blob:url');
-    (URL as any).revokeObjectURL = vi.fn();
-
+  it('no longer renders the legacy export / import buttons (unified control only)', async () => {
     const { wrapper } = await mountList('post', POSTS);
-    await wrapper.find('[data-testid="export-btn"]').trigger('click');
+    expect(wrapper.find('[data-testid="export-btn"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="import-btn"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="import-input"]').exists()).toBe(false);
+    // The bulk bar's "Export selected" action is gone too (unified control handles it).
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
     await flushPromises();
-
-    const calledUrl = fetchSpy.mock.calls[0][0] as string;
-    expect(calledUrl).toContain('/admin/cms/posts/export');
-    expect(calledUrl).toContain('type=post');
-    fetchSpy.mockRestore();
+    expect(wrapper.find('[data-testid="bulk-export"]').exists()).toBe(false);
   });
 
-  it('imports an envelope, then refreshes the list', async () => {
-    vi.stubGlobal('alert', vi.fn());
-    (api.post as any).mockResolvedValue({ created: 1, updated: 0 });
+  it('wires ImportExportControls with entity-key="cms_posts" and manifest-derived caps', async () => {
+    cmsCapabilities.value = {
+      cms_posts: { can_export: true, can_import: true, can_export_pii: false, supported_formats: ['json'] },
+    };
     const { wrapper } = await mountList('post', POSTS);
-    (api.get as any).mockClear();
-
-    const envelope = { items: [{ type: 'post', slug: 'x', title: 'X' }] };
-    const file = new File([JSON.stringify(envelope)], 'cms-posts.json', { type: 'application/json' });
-    await (wrapper.vm as any).onImportFile({ target: { files: [file], value: '' } });
-    await flushPromises();
-
-    const [url, payload] = (api.post as any).mock.calls[0];
-    expect(url).toBe('/admin/cms/posts/import');
-    expect(payload.items[0].type).toBe('post');
-    // refresh re-fetches the list afterwards
-    expect((api.get as any).mock.calls.some((c: unknown[]) => c[0] === '/admin/cms/posts')).toBe(true);
+    const control = wrapper.findComponent(IecStub);
+    expect(control.exists()).toBe(true);
+    expect(control.props('entityKey')).toBe('cms_posts');
+    expect(control.props('canExport')).toBe(true);
+    expect(control.props('canImport')).toBe(true);
   });
 
-  it('normalizes a legacy single-page object and stamps the list type', async () => {
-    vi.stubGlobal('alert', vi.fn());
-    (api.post as any).mockResolvedValue({ created: 1, updated: 0 });
-    const { wrapper } = await mountList('page', POSTS);
-
-    // Legacy cms_page export: a bare object with name/slug, no type/items envelope.
-    const legacy = { slug: 'about', name: 'About', content_html: '<p>x</p>' };
-    const file = new File([JSON.stringify(legacy)], 'about.json', { type: 'application/json' });
-    await (wrapper.vm as any).onImportFile({ target: { files: [file], value: '' } });
-    await flushPromises();
-
-    const [, payload] = (api.post as any).mock.calls[0];
-    expect(payload.items).toHaveLength(1);
-    expect(payload.items[0].type).toBe('page');
-    expect(payload.items[0].slug).toBe('about');
-    expect(payload.items[0].name).toBe('About');
+  it('hides ImportExportControls when the manifest grants no cms_posts capabilities', async () => {
+    cmsCapabilities.value = {
+      cms_posts: { can_export: false, can_import: false, can_export_pii: false, supported_formats: ['json'] },
+    };
+    const { wrapper } = await mountList('post', POSTS);
+    expect(wrapper.findComponent(IecStub).exists()).toBe(false);
   });
 
-  it('surfaces an import error instead of failing silently', async () => {
-    const alertSpy = vi.fn();
-    vi.stubGlobal('alert', alertSpy);
-    (api.post as any).mockRejectedValue({ response: { data: { error: 'boom' } } });
-    const { wrapper } = await mountList('page', POSTS);
-
-    const file = new File([JSON.stringify({ items: [{ type: 'page', title: 'X' }] })], 'x.json', { type: 'application/json' });
-    await (wrapper.vm as any).onImportFile({ target: { files: [file], value: '' } });
+  it('flows the bulk selection into ImportExportControls selectedIds', async () => {
+    cmsCapabilities.value = {
+      cms_posts: { can_export: true, can_import: true, can_export_pii: false, supported_formats: ['json'] },
+    };
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
     await flushPromises();
+    expect(wrapper.findComponent(IecStub).props('selectedIds')).toEqual(['po-1']);
+  });
 
-    expect(alertSpy).toHaveBeenCalledWith('boom');
+  it('uses the cms_posts exchanger for the pages list (shared table)', async () => {
+    cmsCapabilities.value = {
+      cms_posts: { can_export: true, can_import: true, can_export_pii: false, supported_formats: ['json'] },
+    };
+    const { wrapper } = await mountList('page', PAGES);
+    expect(wrapper.findComponent(IecStub).props('entityKey')).toBe('cms_posts');
   });
 });

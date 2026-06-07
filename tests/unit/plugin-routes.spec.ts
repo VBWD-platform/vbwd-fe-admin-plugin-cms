@@ -35,6 +35,13 @@ describe('cms-admin plugin manifest (index.ts)', () => {
     expect(indexSource).toContain('cms/taxonomy');
   });
 
+  it('has no legacy CMS Import / Export page route or nav entry (unified control only)', () => {
+    expect(indexSource).not.toContain('cms/import-export');
+    expect(indexSource).not.toContain('cms-import-export');
+    expect(indexSource).not.toContain('CmsImportExport');
+    expect(indexSource).not.toContain('Import / Export');
+  });
+
   it('routes /admin/cms/posts at the Posts list (type=post) and /admin/cms/pages at the Pages list (type=page)', () => {
     expect(indexSource).toContain("name: 'cms-posts'");
     expect(indexSource).toContain('PostList.vue');

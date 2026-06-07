@@ -15,6 +15,68 @@
     </p>
   </div>
 
+  <!-- meinchat delivery (optional — only active when the meinchat plugin is installed) -->
+  <div class="field-group">
+    <label class="cf-required-toggle">
+      <input
+        :checked="!!cfg.meinchat_enabled"
+        type="checkbox"
+        data-testid="cf-meinchat-enabled"
+        @change="set('meinchat_enabled', ($event.target as HTMLInputElement).checked)"
+      >
+      Also deliver to meinchat
+    </label>
+    <p class="editor-pane__hint">
+      When the meinchat plugin is installed, each submission is posted into the
+      recipients' <code>/dashboard/messages</code> from a per-form bot sender.
+    </p>
+  </div>
+
+  <template v-if="cfg.meinchat_enabled">
+    <div class="field-group">
+      <label class="field-label">meinchat sender email *</label>
+      <input
+        :value="cfg.meinchat_sender_email"
+        class="field-input"
+        type="email"
+        placeholder="contact-form-1@example.com"
+        data-testid="cf-meinchat-sender-email"
+        @input="set('meinchat_sender_email', ($event.target as HTMLInputElement).value)"
+      >
+      <p class="editor-pane__hint">
+        A dedicated bot account is created/reused for this email (role <code>BOT</code> — it cannot log in).
+      </p>
+    </div>
+    <div class="field-group">
+      <label class="field-label">meinchat sender nickname *</label>
+      <input
+        :value="cfg.meinchat_sender_nickname"
+        class="field-input"
+        type="text"
+        placeholder="VBWD_contact_form_1"
+        data-testid="cf-meinchat-sender-nickname"
+        @input="set('meinchat_sender_nickname', ($event.target as HTMLInputElement).value)"
+      >
+      <p class="editor-pane__hint">
+        Shown to recipients as the sender handle, e.g. <code>@VBWD_contact_form_1</code>.
+      </p>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Recipients</label>
+      <input
+        :value="meinchatRecipientsText"
+        class="field-input"
+        type="text"
+        placeholder="@admin, @support"
+        data-testid="cf-meinchat-recipients"
+        @input="set('meinchat_recipients', ($event.target as HTMLInputElement).value.split(',').map((s: string) => s.trim()).filter(Boolean))"
+      >
+      <p class="editor-pane__hint">
+        Comma-separated meinchat handles. <code>@admin</code> (default) resolves to the platform admin.
+      </p>
+    </div>
+  </template>
+
   <!-- Success message -->
   <div class="field-group">
     <label class="field-label">Success Message</label>
@@ -284,6 +346,12 @@ const props = defineProps<{ config: Record<string, unknown> }>();
 const emit = defineEmits<{ (e: 'update:config', val: Record<string, unknown>): void }>();
 
 const cfg = computed(() => props.config);
+
+// meinchat recipients are stored as a string[]; show them comma-separated.
+const meinchatRecipientsText = computed(() => {
+  const recipients = props.config.meinchat_recipients;
+  return Array.isArray(recipients) ? (recipients as string[]).join(', ') : '@admin';
+});
 
 const DEFAULT_FIELDS: ContactFormField[] = [
   { id: 'name',  type: 'text',  label: 'Name',  required: true },

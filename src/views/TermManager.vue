@@ -2,34 +2,20 @@
   <div class="cms-view term-manager">
     <div class="term-manager__header">
       <h2>{{ $t('cms.terms') }}</h2>
-      <div
-        v-if="canManage"
-        class="term-manager__actions"
-      >
-        <button
-          type="button"
-          class="btn"
-          data-testid="term-export"
-          @click="exportTerms"
-        >
-          {{ $t('cms.export') }}
-        </button>
-        <button
-          type="button"
-          class="btn"
-          data-testid="term-import"
-          @click="importInput?.click()"
-        >
-          {{ $t('cms.import') }}
-        </button>
-        <input
-          ref="importInput"
-          type="file"
-          accept=".json,application/json"
-          style="display: none"
-          data-testid="term-import-input"
-          @change="onImportFile"
-        >
+      <div class="term-manager__actions">
+        <!-- Unified data-exchange controls — the only import/export path. -->
+        <ImportExportControls
+          v-if="showImportExport"
+          :api="dataExchangeApi"
+          entity-key="cms_terms"
+          :selected-ids="selectedIds"
+          :can-export="capabilities.can_export"
+          :can-import="capabilities.can_import"
+          :can-export-pii="capabilities.can_export_pii"
+          :is-superadmin="isSuperadmin"
+          :supported-formats="capabilities.supported_formats"
+          @refresh="refresh"
+        />
       </div>
     </div>
 
@@ -178,10 +164,26 @@
 import { ref, computed, onMounted } from 'vue';
 import { useCmsContentStore, type CmsTerm } from '../stores/useCmsContentStore';
 import { useAuthStore } from '@/stores/auth';
+import { ImportExportControls } from 'vbwd-view-component';
+import { createDataExchangeApi } from '@/api/dataExchangeApi';
+import { useDataExchangeManifest } from '@/composables/useDataExchangeManifest';
 
 const store = useCmsContentStore();
 const authStore = useAuthStore();
 const canManage = computed(() => authStore.hasPermission('cms.manage'));
+
+// ── Unified data-exchange controls ─────────────────────────────────────────
+// Terms have no per-row selection here, so the control exports all / filtered
+// and imports through the standard /data-exchange/* flow.
+const ENTITY_KEY = 'cms_terms';
+const dataExchangeApi = createDataExchangeApi();
+const isSuperadmin = computed(() => authStore.isSuperAdmin);
+const { load: loadManifest, capabilitiesFor } = useDataExchangeManifest();
+const capabilities = computed(() => capabilitiesFor(ENTITY_KEY));
+const showImportExport = computed(
+  () => capabilities.value.can_export || capabilities.value.can_import,
+);
+const selectedIds = computed<string[]>(() => []);
 
 const activeType = ref<string>('');
 const termSearch = ref<string>('');
@@ -197,8 +199,6 @@ interface TermDraft {
 }
 
 const draft = ref<TermDraft>({ name: '', slug: '', parent_id: null, seo_excluded: false });
-
-const importInput = ref<HTMLInputElement | null>(null);
 
 // Parents first, then their children (single level of nesting surfaced).
 const orderedTerms = computed<CmsTerm[]>(() => {
@@ -272,35 +272,13 @@ async function remove(term: CmsTerm) {
   await store.deleteTerm(term.id, term.term_type);
 }
 
-// ── Export / Import (VBWD-standard JSON) ────────────────────────────────────
-async function exportTerms() {
-  if (!activeType.value) return;
-  const payload = await store.exportTerms(activeType.value);
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `cms-terms-${activeType.value}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-async function onImportFile(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  try {
-    const payload = JSON.parse(await file.text());
-    await store.importTerms(payload);
-    // Refresh the list so imported terms appear immediately.
-    if (activeType.value) await store.fetchTerms(activeType.value);
-  } catch (error: unknown) {
-    store.error = (error as Error)?.message ?? 'Import failed';
-  } finally {
-    (event.target as HTMLInputElement).value = '';
-  }
+// Reload the active term type after an import so new terms appear immediately.
+async function refresh() {
+  if (activeType.value) await store.fetchTerms(activeType.value);
 }
 
 onMounted(async () => {
+  void loadManifest();
   await store.fetchTermTypes();
   if (store.termTypes.length) {
     await selectType(store.termTypes[0].key);

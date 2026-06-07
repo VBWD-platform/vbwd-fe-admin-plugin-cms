@@ -3,32 +3,20 @@
     <div class="view-header">
       <h2>{{ isPage ? $t('cms.pages') : $t('cms.posts') }}</h2>
       <div class="view-header__actions">
-        <button
-          v-if="canManage"
-          type="button"
-          class="action-btn"
-          data-testid="export-btn"
-          @click="exportContent()"
-        >
-          {{ $t('cms.export') }}
-        </button>
-        <button
-          v-if="canManage"
-          type="button"
-          class="action-btn"
-          data-testid="import-btn"
-          @click="importInput?.click()"
-        >
-          {{ $t('cms.import') }}
-        </button>
-        <input
-          ref="importInput"
-          type="file"
-          accept="application/json"
-          class="hidden-input"
-          data-testid="import-input"
-          @change="onImportFile"
-        >
+        <!-- Unified data-exchange controls — the only import/export path. -->
+        <ImportExportControls
+          v-if="showImportExport"
+          :api="dataExchangeApi"
+          entity-key="cms_posts"
+          :selected-ids="selectedContentIds"
+          :filter-state="filterParams()"
+          :can-export="contentCapabilities.can_export"
+          :can-import="contentCapabilities.can_import"
+          :can-export-pii="contentCapabilities.can_export_pii"
+          :is-superadmin="isSuperadmin"
+          :supported-formats="contentCapabilities.supported_formats"
+          @refresh="load"
+        />
         <router-link
           v-if="canManage"
           :to="{ name: 'cms-post-new', query: { type: props.type } }"
@@ -160,7 +148,6 @@
       :can-manage="canManage"
       :all-matching="bulk.allMatching.value"
       :total="store.posts?.total ?? 0"
-      @export="bulkExport"
       @delete="bulkDelete"
       @clear="bulk.clear"
     >
@@ -429,6 +416,9 @@ import { useCmsBulkSelection } from '../composables/useCmsBulkSelection';
 import CmsBulkBar from '../components/CmsBulkBar.vue';
 import CmsSelectAllTh from '../components/CmsSelectAllTh.vue';
 import CmsSortableTh from '../components/CmsSortableTh.vue';
+import { ImportExportControls } from 'vbwd-view-component';
+import { createDataExchangeApi } from '@/api/dataExchangeApi';
+import { useDataExchangeManifest } from '@/composables/useDataExchangeManifest';
 
 const POST_STATUSES = ['draft', 'pending', 'scheduled', 'published', 'private', 'trash'] as const;
 const PER_PAGE = 20;
@@ -454,7 +444,6 @@ const dateTo = ref('');
 const currentPage = ref(1);
 const sortBy = ref('updated_at');
 const sortDir = ref<'asc' | 'desc'>('desc');
-const importInput = ref<HTMLInputElement | null>(null);
 
 // Term name lookups (posts only) — resolves term_ids → category / tag names.
 const categoryTerms = ref<CmsTerm[]>([]);
@@ -487,6 +476,20 @@ const bulk = useCmsBulkSelection({
   totalCount: () => store.posts?.total ?? 0,
   fetchAllIds: () => store.fetchAllPostIds(filterParams()),
 });
+
+// ── Unified data-exchange controls ─────────────────────────────────────────
+// Posts and pages share the single `cms_posts` exchanger (one DB table); the
+// per-list control derives its capabilities from the permission-filtered
+// manifest and reuses the existing bulk selection for "Export selected".
+const CONTENT_ENTITY_KEY = 'cms_posts';
+const dataExchangeApi = createDataExchangeApi();
+const isSuperadmin = computed(() => authStore.isSuperAdmin);
+const { load: loadManifest, capabilitiesFor } = useDataExchangeManifest();
+const contentCapabilities = computed(() => capabilitiesFor(CONTENT_ENTITY_KEY));
+const showImportExport = computed(
+  () => contentCapabilities.value.can_export || contentCapabilities.value.can_import,
+);
+const selectedContentIds = computed(() => [...bulk.selected.value]);
 
 function load() {
   store.fetchPosts({
@@ -592,67 +595,10 @@ async function onBulkAssignLayout(event: Event) {
   load();
 }
 
-async function bulkExport() {
-  const ids = await bulk.resolveIds();
-  if (!ids.length) return;
-  await exportContent(ids);
-}
-
 async function deleteOne(id: string) {
   if (!confirm('Delete this item?')) return;
   await api.delete(`/admin/cms/posts/${id}`);
   load();
-}
-
-// ── Import / Export ──────────────────────────────────────────────────────
-// `ids` scopes to "export selected"; without it, exports the whole type.
-async function exportContent(ids?: string[]) {
-  const { useAuthStore: getAuthStore } = await import('@/stores/auth');
-  const auth = getAuthStore();
-  const base = (import.meta.env.VITE_API_URL as string) || '/api/v1';
-  const idsQuery = ids && ids.length ? `&ids=${ids.join(',')}` : '';
-  const res = await fetch(`${base}/admin/cms/posts/export?type=${props.type}${idsQuery}`, {
-    method: 'GET',
-    headers: {
-      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
-    },
-  });
-  if (!res.ok) throw new Error(`Export failed: ${res.statusText}`);
-  const blob = await res.blob();
-  const anchor = document.createElement('a');
-  anchor.href = URL.createObjectURL(blob);
-  anchor.download = `cms-${props.type}s.json`;
-  anchor.click();
-  URL.revokeObjectURL(anchor.href);
-}
-
-async function onImportFile(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
-  try {
-    const parsed = JSON.parse(await file.text());
-    // Normalize to the import envelope and stamp the list's type onto any item
-    // that omits it — a legacy single-page export has no `type`/`items`.
-    const rawItems: any[] = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed?.items)
-        ? parsed.items
-        : [parsed];
-    const items = rawItems.map((item) => ({ type: props.type, ...item }));
-    const result = await api.post<{ created?: number; updated?: number }>(
-      '/admin/cms/posts/import',
-      { ...(parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}), items },
-    );
-    const created = result?.created ?? 0;
-    const updated = result?.updated ?? 0;
-    alert(`Import complete: ${created} created, ${updated} updated.`);
-    load();
-  } catch (err: any) {
-    alert(err?.response?.data?.error ?? err?.message ?? 'Import failed');
-  } finally {
-    input.value = '';
-  }
 }
 
 onMounted(async () => {
@@ -666,12 +612,13 @@ onMounted(async () => {
   }
   store.fetchLayouts({ per_page: 100 });
   store.fetchStyles({ per_page: 100 });
+  void loadManifest();
   load();
 });
 
 defineExpose({
-  onImportFile, exportContent, bulkDelete, bulkStatus, bulkSearchable,
-  onBulkAssignCategory, onBulkAssignLayout, bulkExport, sort, load, bulk,
+  bulkDelete, bulkStatus, bulkSearchable,
+  onBulkAssignCategory, onBulkAssignLayout, sort, load, bulk,
 });
 </script>
 
@@ -709,10 +656,6 @@ defineExpose({
 .view-header h2 {
   margin: 0;
   color: #2c3e50;
-}
-
-.hidden-input {
-  display: none;
 }
 
 .cms-content-list__error {
