@@ -738,6 +738,7 @@ import { useAuthStore } from '@/stores/auth';
 import CmsImagePicker from '../components/CmsImagePicker.vue';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
 import TipTapEditor from '../components/TipTapEditor.vue';
+import { buildPostUrl, feUserBaseUrl as resolveFeUserBaseUrl } from '../utils/postUrl';
 
 const SERP_TITLE_MAX = 60;
 const SERP_DESC_MAX = 160;
@@ -945,23 +946,15 @@ watch(activeContentTab, async (tab) => {
 });
 
 // ── View Page link (fe-user public URL), mirroring the page editor ──────────
-const feUserBaseUrl = window.location.port === '8081'
-  ? 'http://localhost:8080'
-  : window.location.origin.replace(':8081', ':8080');
+const feUserBaseUrl = resolveFeUserBaseUrl();
 // Preview token (capability) for viewing unpublished content via a shareable
 // URL — only known once a post is saved/loaded.
 const previewToken = ref('');
-const postUrl = computed(() => {
-  const slug = (form.value.slug || '').replace(/^\//, '');
-  if (!slug) return '';
-  const url = `${feUserBaseUrl}/${slug}`;
-  // Published → public URL; otherwise a preview link that bypasses the
-  // published gate via the post's preview_token.
-  if (form.value.status !== 'published' && previewToken.value) {
-    return `${url}?preview_token=${previewToken.value}`;
-  }
-  return url;
-});
+// Published → public URL; otherwise a preview link that bypasses the published
+// gate via the post's preview_token. Shared with the list "open page" icon.
+const postUrl = computed(() =>
+  buildPostUrl(form.value.slug, form.value.status, previewToken.value),
+);
 
 // type_data is kept as a plain object; this proxy keeps v-model bindings stable.
 const typeDataModel = computed<Record<string, unknown>>(() => form.value.type_data);

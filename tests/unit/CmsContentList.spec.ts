@@ -59,8 +59,8 @@ const LAYOUTS = {
 
 const POSTS = {
   items: [
-    { id: 'po-1', type: 'post', slug: 'launch', title: 'Launch', status: 'published', language: 'en', updated_at: '2026-06-01T00:00:00Z', term_ids: ['cat-1', 'tag-1'] },
-    { id: 'po-2', type: 'post', slug: 'news-2', title: 'Second', status: 'draft', language: 'en', updated_at: '2026-06-02T00:00:00Z', term_ids: [] },
+    { id: 'po-1', type: 'post', slug: 'launch', title: 'Launch', status: 'published', language: 'en', updated_at: '2026-06-01T00:00:00Z', term_ids: ['cat-1', 'tag-1'], preview_token: 'tok-1' },
+    { id: 'po-2', type: 'post', slug: 'news-2', title: 'Second', status: 'draft', language: 'en', updated_at: '2026-06-02T00:00:00Z', term_ids: [], preview_token: 'tok-2' },
   ],
   total: 2,
   page: 1,
@@ -70,7 +70,7 @@ const POSTS = {
 
 const PAGES = {
   items: [
-    { id: 'pg-1', type: 'page', slug: 'about', title: 'About Us', status: 'published', language: 'en', updated_at: '2026-06-01T00:00:00Z' },
+    { id: 'pg-1', type: 'page', slug: 'about', title: 'About Us', status: 'published', language: 'en', updated_at: '2026-06-01T00:00:00Z', preview_token: 'tok-pg' },
   ],
   total: 1,
   page: 1,
@@ -168,6 +168,32 @@ describe('CmsContentList.vue (shared list)', () => {
     expect(headers).not.toContain('Category');
     expect(headers).not.toContain('Tags');
     expect(headers).not.toContain('Type');
+  });
+
+  it('renders a row-slug-link per row opening the fe-user page', async () => {
+    const { wrapper } = await mountList('post', POSTS);
+    const links = wrapper.findAll('[data-testid="row-slug-link"]');
+    expect(links).toHaveLength(2);
+    // Published row → plain public URL (no token).
+    expect(links[0].attributes('href')).toContain('/launch');
+    expect(links[0].attributes('href')).not.toContain('preview_token');
+    expect(links[0].attributes('target')).toBe('_blank');
+    // Draft row → preview URL carrying the post's token.
+    expect(links[1].attributes('href')).toContain('/news-2?preview_token=tok-2');
+  });
+
+  it('the row-slug-link click does not open the editor', async () => {
+    const { wrapper, router } = await mountList('post', POSTS);
+    const push = vi.spyOn(router, 'push');
+    await wrapper.find('[data-testid="row-slug-link"]').trigger('click');
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('renders the row-slug-link on the pages list too', async () => {
+    const { wrapper } = await mountList('page', PAGES);
+    const link = wrapper.find('[data-testid="row-slug-link"]');
+    expect(link.exists()).toBe(true);
+    expect(link.attributes('href')).toContain('/about');
   });
 
   it('full-row click navigates to the editor', async () => {

@@ -346,6 +346,16 @@
           <td>{{ item.title }}</td>
           <td class="slug-cell">
             {{ item.slug }}
+            <a
+              v-if="item.slug"
+              :href="buildPostUrl(item.slug, item.status, item.preview_token)"
+              target="_blank"
+              rel="noopener"
+              class="slug-preview-link"
+              data-testid="row-slug-link"
+              :title="item.status === 'published' ? 'View page' : 'Preview (unpublished)'"
+              @click.stop
+            >🔗</a>
           </td>
           <td v-if="!isPage">
             {{ categoryNamesFor(item) }}
@@ -419,6 +429,7 @@ import CmsSortableTh from '../components/CmsSortableTh.vue';
 import { ImportExportControls } from 'vbwd-view-component';
 import { createDataExchangeApi } from '@/api/dataExchangeApi';
 import { useDataExchangeManifest } from '@/composables/useDataExchangeManifest';
+import { buildPostUrl } from '../utils/postUrl';
 
 const POST_STATUSES = ['draft', 'pending', 'scheduled', 'published', 'private', 'trash'] as const;
 const PER_PAGE = 20;

@@ -60,6 +60,8 @@ export interface CmsPost {
   type_data: Record<string, unknown> | null;
   parent_id: string | null;
   status: string;
+  /** Shareable preview token for the fe-user ?preview_token= URL. */
+  preview_token?: string | null;
   published_at: string | null;
   language: string;
   translation_group_id: string | null;
