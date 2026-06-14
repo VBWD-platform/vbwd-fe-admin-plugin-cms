@@ -709,6 +709,23 @@
               </option>
             </select>
           </div>
+
+          <!-- Tags + Custom fields (S77, generic core editors) — added
+               alongside the legacy cms_term pickers above, not replacing them. -->
+          <div
+            v-if="!isNew && id"
+            class="field-group"
+            data-testid="post-tags-custom-fields"
+          >
+            <TagPicker
+              :entity-type="coreEntityType"
+              :entity-id="id"
+            />
+            <CustomFieldsEditor
+              :entity-type="coreEntityType"
+              :entity-id="id"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -738,6 +755,8 @@ import { useAuthStore } from '@/stores/auth';
 import CmsImagePicker from '../components/CmsImagePicker.vue';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
 import TipTapEditor from '../components/TipTapEditor.vue';
+import TagPicker from '@/components/TagPicker.vue';
+import CustomFieldsEditor from '@/components/CustomFieldsEditor.vue';
 import { buildPostUrl, feUserBaseUrl as resolveFeUserBaseUrl } from '../utils/postUrl';
 
 const SERP_TITLE_MAX = 60;
@@ -766,6 +785,11 @@ const canManage = computed(() => authStore.hasPermission('cms.manage'));
 
 const id = computed(() => route.params.id as string | undefined);
 const isNew = computed(() => !id.value);
+
+// S77 — the core tags / custom-fields entity type is keyed off the post's kind:
+// a page edits `cms_page`, any other type edits `cms_post`. Added alongside the
+// legacy cms_term taxonomy pickers (untouched).
+const coreEntityType = computed(() => (form.value.type === 'page' ? 'cms_page' : 'cms_post'));
 
 interface PostForm {
   type: string;

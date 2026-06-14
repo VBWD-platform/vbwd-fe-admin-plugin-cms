@@ -353,7 +353,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
 import { useAuthStore } from '@/stores/auth';
@@ -370,8 +370,10 @@ const store  = useCmsAdminStore();
 const authStore = useAuthStore();
 const canManage = computed(() => authStore.hasPermission('cms.widgets.manage'));
 
-const id    = route.params.id as string | undefined;
-const isNew = !id;
+// Reactive so navigating between two widget-edit routes (same component
+// instance) re-fetches and resets the form instead of showing stale data.
+const id    = computed(() => route.params.id as string | undefined);
+const isNew = computed(() => !id.value);
 
 const imagePickerOpen     = ref(false);
 const htmlImagePickerOpen = ref(false);
@@ -521,7 +523,7 @@ function onHtmlImageSelected(url: string, alt: string) {
 
 async function save() {
   const payload: Record<string, unknown> = { ...form.value };
-  if (id) payload.id = id;
+  if (id.value) payload.id = id.value;
 
   if (form.value.widget_type === 'html') {
     const b64 = btoa(unescape(encodeURIComponent(htmlContent.value)));
@@ -543,11 +545,11 @@ async function save() {
   const saved = await store.saveWidget(payload as any);
 
   if (form.value.widget_type === 'menu') {
-    const wid = saved?.id ?? id!;
+    const wid = saved?.id ?? id.value!;
     await store.replaceMenuTree(wid, menuItems.value as CmsMenuItemData[]);
   }
 
-  if (saved && isNew) {
+  if (saved && isNew.value) {
     router.replace(`/admin/cms/widgets/${saved.id}/edit`);
   }
 }
@@ -555,60 +557,87 @@ async function save() {
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 async function remove() {
-  if (!id || !confirm('Delete this widget? It cannot be deleted if assigned to a layout.')) return;
+  if (!id.value || !confirm('Delete this widget? It cannot be deleted if assigned to a layout.')) return;
   try {
-    await store.deleteWidget(id);
+    await store.deleteWidget(id.value);
     router.push('/admin/cms/widgets');
   } catch (e: any) {
     alert(e?.message ?? 'Failed to delete widget');
   }
 }
 
-// ── Load on mount ─────────────────────────────────────────────────────────────
+// ── Load ──────────────────────────────────────────────────────────────────────
 
-onMounted(async () => {
-  if (!isNew) {
-    await store.fetchWidget(id!);
-    const w = store.currentWidget;
-    if (w) {
-      form.value = {
-        name:        w.name,
-        slug:        w.slug,
-        widget_type: w.widget_type as 'html' | 'menu' | 'slideshow' | 'vue-component',
-        sort_order:  w.sort_order,
-        is_active:   w.is_active,
-      };
+/** Clear every editor sub-state so a fresh load (or a route change) starts blank. */
+function resetEditorState() {
+  form.value = {
+    name: '',
+    slug: '',
+    widget_type: 'html',
+    sort_order: 0,
+    is_active: true,
+  };
+  htmlContent.value = '';
+  cssContent.value = '';
+  menuCssContent.value = '';
+  menuItems.value = [];
+  vueComponentConfig.value = { component_name: '' };
+  vcCss.value = '';
+  slideshowImages.value = [];
+}
 
-      if (w.widget_type === 'html') {
-        const b64 = (w.content_json as any)?.content ?? '';
-        try {
-          htmlContent.value = b64 ? decodeURIComponent(escape(atob(b64))) : '';
-        } catch {
-          htmlContent.value = b64;
-        }
-        cssContent.value = (w as any).source_css ?? '';
-      }
+async function loadWidget() {
+  resetEditorState();
+  if (isNew.value) return;
 
-      if (w.widget_type === 'menu') {
-        menuCssContent.value = (w as any).source_css ?? '';
-        if (w.menu_items) menuItems.value = w.menu_items;
-      }
+  await store.fetchWidget(id.value!);
+  const w = store.currentWidget;
+  if (!w) return;
 
-      if (w.widget_type === 'vue-component') {
-        const componentName = (w.content_json as any)?.component
-          ?? (w.config as any)?.component_name
-          ?? '';
-        vueComponentConfig.value = { component_name: componentName, ...(w.config ?? {}) };
-        vcCss.value = (w.config?.css as string) ?? '';
-      }
+  form.value = {
+    name:        w.name,
+    slug:        w.slug,
+    widget_type: w.widget_type as 'html' | 'menu' | 'slideshow' | 'vue-component',
+    sort_order:  w.sort_order,
+    is_active:   w.is_active,
+  };
 
-      if (w.widget_type === 'slideshow' && w.content_json?.images) {
-        slideshowImages.value = (w.content_json.images as any[]).map(i => ({
-          url: i.url ?? '', alt: i.alt ?? '', caption: i.caption ?? '',
-        }));
-      }
+  if (w.widget_type === 'html') {
+    const b64 = (w.content_json as any)?.content ?? '';
+    try {
+      htmlContent.value = b64 ? decodeURIComponent(escape(atob(b64))) : '';
+    } catch {
+      htmlContent.value = b64;
     }
+    cssContent.value = (w as any).source_css ?? '';
   }
+
+  if (w.widget_type === 'menu') {
+    menuCssContent.value = (w as any).source_css ?? '';
+    if (w.menu_items) menuItems.value = w.menu_items;
+  }
+
+  if (w.widget_type === 'vue-component') {
+    const componentName = (w.content_json as any)?.component
+      ?? (w.config as any)?.component_name
+      ?? '';
+    vueComponentConfig.value = { component_name: componentName, ...(w.config ?? {}) };
+    vcCss.value = (w.config?.css as string) ?? '';
+  }
+
+  if (w.widget_type === 'slideshow' && w.content_json?.images) {
+    slideshowImages.value = (w.content_json.images as any[]).map(i => ({
+      url: i.url ?? '', alt: i.alt ?? '', caption: i.caption ?? '',
+    }));
+  }
+}
+
+onMounted(loadWidget);
+
+// Re-load when navigating between two widget-edit routes (same instance) so the
+// editor never shows the previously-open widget's data.
+watch(() => route.params.id, (next, prev) => {
+  if (next !== prev) loadWidget();
 });
 </script>
 
@@ -621,7 +650,7 @@ onMounted(async () => {
 .widget-editor__body { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
 
 /* ── Meta-fields grid ─────────────────────────────────────────────────────── */
-.meta-fields { display: grid; grid-template-columns: 1fr 1fr 140px 100px 100px; gap: 0 1rem; align-items: start; }
+.meta-fields { display: grid; grid-template-columns: 1fr 1fr 140px 100px 100px; gap: 0.5rem 1rem; align-items: start; }
 .checkbox-group { padding-top: 1.5rem; }
 
 /* tablet */

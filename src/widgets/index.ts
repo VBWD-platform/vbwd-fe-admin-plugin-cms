@@ -8,6 +8,11 @@ import { registerWidgetEditor } from './widgetEditorRegistry';
 import CmsBreadcrumbEditorTab from './CmsBreadcrumbEditorTab.vue';
 import NativePricingPlansEditorTab from './NativePricingPlansEditorTab.vue';
 import ContactFormEditorTab from './ContactFormEditorTab.vue';
+import CustomCodeEditorTab from './CustomCodeEditorTab.vue';
+import SearchEditorTab from './SearchEditorTab.vue';
+import SearchResultsEditorTab from './SearchResultsEditorTab.vue';
+import CategoryEditorTab from './CategoryEditorTab.vue';
+import AddonCatalogEditorTab from './AddonCatalogEditorTab.vue';
 
 // ── CmsBreadcrumb ─────────────────────────────────────────────────────────────
 
@@ -130,5 +135,143 @@ registerWidgetEditor({
       </form>
     </div>`;
     return { html };
+  },
+});
+
+// ── CustomCode ──────────────────────────────────────────────────────────────
+// Raw HTML/JS injected verbatim on the public site (analytics snippets,
+// third-party embeds, etc.). The fe-user CustomCodeWidget reads config.code.
+
+registerWidgetEditor({
+  componentName: 'CustomCode',
+
+  defaultConfig: () => ({
+    component_name: 'CustomCode',
+    code: '',
+  }),
+
+  generalTabComponent: CustomCodeEditorTab,
+
+  cssHint: 'Optional styles injected alongside the custom code on the page.',
+
+  buildPreview(config) {
+    const code = (config.code as string) || '';
+    return { html: code };
+  },
+});
+
+// ── Search ────────────────────────────────────────────────────────────────────
+// fe-user component PostSearch.vue — a search box that posts a query to a page
+// hosting the SearchResults widget.
+
+registerWidgetEditor({
+  componentName: 'Search',
+
+  defaultConfig: () => ({
+    component_name: 'Search',
+    placeholder: 'Search…',
+    target_path: '',
+  }),
+
+  generalTabComponent: SearchEditorTab,
+
+  cssHint: 'Target <code>.post-search</code>, <code>.post-search__input</code>.',
+
+  buildPreview(config) {
+    const placeholder = (config.placeholder as string) || 'Search…';
+    return {
+      html: `<input type="search" placeholder="${placeholder}" style="width:100%;padding:.6rem .9rem;border:1px solid #cbd5e1;border-radius:6px;font-size:1rem">`,
+    };
+  },
+});
+
+// ── SearchResults ─────────────────────────────────────────────────────────────
+// fe-user component PostSearchResults.vue — renders matched posts as a list.
+
+registerWidgetEditor({
+  componentName: 'SearchResults',
+
+  defaultConfig: () => ({
+    component_name: 'SearchResults',
+    type: 'post',
+    mode: 'titles',
+    meta: [],
+    per_page: 10,
+    scope_term_type: '',
+    scope_term_slug: '',
+  }),
+
+  generalTabComponent: SearchResultsEditorTab,
+
+  cssHint: 'Target <code>.post-search-results</code>, <code>.post-list</code>.',
+
+  buildPreview() {
+    return {
+      html: '<ul style="list-style:none;padding:0"><li style="padding:.5rem 0;border-bottom:1px solid #eee">Result title one</li><li style="padding:.5rem 0;border-bottom:1px solid #eee">Result title two</li></ul>',
+    };
+  },
+});
+
+// ── Category ──────────────────────────────────────────────────────────────────
+// fe-user component PostTermListWidget.vue — lists posts under a given term.
+
+registerWidgetEditor({
+  componentName: 'Category',
+
+  defaultConfig: () => ({
+    component_name: 'Category',
+    type: 'post',
+    term_type: 'category',
+    term_slug: '',
+    mode: 'titles',
+    meta: [],
+    limit: 10,
+    paginate: false,
+  }),
+
+  generalTabComponent: CategoryEditorTab,
+
+  cssHint: 'Target <code>.post-term-list-widget</code>, <code>.post-list</code>.',
+
+  buildPreview() {
+    return {
+      html: '<ul style="list-style:none;padding:0"><li style="padding:.5rem 0;border-bottom:1px solid #eee">Result title one</li><li style="padding:.5rem 0;border-bottom:1px solid #eee">Result title two</li></ul>',
+    };
+  },
+});
+
+// ── AddonCatalog ──────────────────────────────────────────────────────────────
+// fe-user component AddonCatalog.vue — lists the public add-on catalogue, one
+// card per add-on, price rendered through the shared PriceDisplay.
+
+registerWidgetEditor({
+  componentName: 'AddonCatalog',
+
+  defaultConfig: () => ({
+    component_name: 'AddonCatalog',
+    heading: '',
+  }),
+
+  generalTabComponent: AddonCatalogEditorTab,
+
+  cssHint: 'Target <code>.addon-catalog</code>, <code>.addon-card</code>, <code>.addon-card__name</code>, <code>.addon-card__price</code>.',
+
+  buildPreview(config) {
+    const heading = (config.heading as string) || '';
+    const headingHtml = heading
+      ? `<h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">${heading}</h2>`
+      : '';
+    const card = (name: string, price: string) =>
+      `<div style="border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem 1.25rem">
+  <h3 style="font-size:1.0625rem;font-weight:600;margin:0 0 .5rem">${name}</h3>
+  <p style="font-size:.9375rem;color:#666;margin:0 0 .75rem">Add-on description.</p>
+  <p style="font-size:1rem;font-weight:700;margin:0">${price}</p>
+</div>`;
+    return {
+      html: `${headingHtml}<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1.5rem">
+  ${card('Extra Tokens', '5.00 EUR')}
+  ${card('Priority Support', '12.00 EUR')}
+</div>`,
+    };
   },
 });

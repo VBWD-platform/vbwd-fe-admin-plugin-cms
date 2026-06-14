@@ -51,6 +51,29 @@
           :placeholder="$t('cms.search')"
           data-testid="term-search"
         >
+
+        <!-- Bulk action bar (delete only) — shown once ≥1 term is selected. -->
+        <CmsBulkBar
+          :count="selectedIds.length"
+          :can-manage="canManage"
+          @delete="bulkDelete"
+          @clear="clearSelection"
+        />
+
+        <div
+          v-if="canManage && visibleTerms.length"
+          class="term-row term-row--head"
+        >
+          <input
+            type="checkbox"
+            class="term-row__check"
+            data-testid="term-select-all"
+            :checked="allVisibleSelected"
+            @change="toggleSelectAll"
+          >
+          <span class="term-row__name term-row__head-label">{{ $t('cms.selectAll', 'Select all') }}</span>
+        </div>
+
         <div
           v-for="term in visibleTerms"
           :key="term.id"
@@ -59,6 +82,14 @@
           data-testid="term-row"
           :data-term-id="term.id"
         >
+          <input
+            v-if="canManage"
+            type="checkbox"
+            class="term-row__check"
+            :data-testid="`term-row-select-${term.id}`"
+            :checked="isSelected(term.id)"
+            @change="toggleOne(term.id)"
+          >
           <span class="term-row__name">{{ term.name }}</span>
           <span class="term-row__slug">{{ term.slug }}</span>
           <button
@@ -167,14 +198,16 @@ import { useAuthStore } from '@/stores/auth';
 import { ImportExportControls } from 'vbwd-view-component';
 import { createDataExchangeApi } from '@/api/dataExchangeApi';
 import { useDataExchangeManifest } from '@/composables/useDataExchangeManifest';
+import CmsBulkBar from '../components/CmsBulkBar.vue';
 
 const store = useCmsContentStore();
 const authStore = useAuthStore();
 const canManage = computed(() => authStore.hasPermission('cms.manage'));
 
 // ── Unified data-exchange controls ─────────────────────────────────────────
-// Terms have no per-row selection here, so the control exports all / filtered
-// and imports through the standard /data-exchange/* flow.
+// The control imports/exports through the standard /data-exchange/* flow and
+// honours the same bulk selection used for bulk delete (single source: the
+// `selectedIds` computed below).
 const ENTITY_KEY = 'cms_terms';
 const dataExchangeApi = createDataExchangeApi();
 const isSuperadmin = computed(() => authStore.isSuperAdmin);
@@ -183,7 +216,6 @@ const capabilities = computed(() => capabilitiesFor(ENTITY_KEY));
 const showImportExport = computed(
   () => capabilities.value.can_export || capabilities.value.can_import,
 );
-const selectedIds = computed<string[]>(() => []);
 
 const activeType = ref<string>('');
 const termSearch = ref<string>('');
@@ -228,6 +260,45 @@ const visibleTerms = computed<CmsTerm[]>(() => {
   );
 });
 
+// ── Bulk selection (delete only) ───────────────────────────────────────────
+// Terms load fully per type (no server pagination), so a plain Set over the
+// visible rows is enough — no "select all across pages" machinery needed.
+const selected = ref<Set<string>>(new Set());
+const selectedIds = computed<string[]>(() => [...selected.value]);
+
+const allVisibleSelected = computed(
+  () => visibleTerms.value.length > 0 && visibleTerms.value.every((term) => selected.value.has(term.id)),
+);
+
+function isSelected(id: string): boolean {
+  return selected.value.has(id);
+}
+
+function toggleOne(id: string): void {
+  const next = new Set(selected.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  selected.value = next;
+}
+
+function toggleSelectAll(): void {
+  selected.value = allVisibleSelected.value
+    ? new Set()
+    : new Set(visibleTerms.value.map((term) => term.id));
+}
+
+function clearSelection(): void {
+  selected.value = new Set();
+}
+
+async function bulkDelete(): Promise<void> {
+  const ids = selectedIds.value;
+  if (!ids.length || !confirm(`Delete ${ids.length} selected term(s)?`)) return;
+  await store.bulkDeleteTerms(ids);
+  clearSelection();
+  if (activeType.value) await store.fetchTerms(activeType.value);
+}
+
 function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
@@ -241,6 +312,7 @@ function autoSlug() {
 async function selectType(key: string) {
   activeType.value = key;
   termSearch.value = '';
+  clearSelection();
   draft.value = { name: '', slug: '', parent_id: null, seo_excluded: false };
   await store.fetchTerms(key);
 }
@@ -304,6 +376,9 @@ defineExpose({ activeType, draft });
 .term-search:focus { outline: none; border-color: #3498db; }
 .term-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.25rem; border-bottom: 1px solid #f3f4f6; }
 .term-row--child { padding-left: 1.5rem; }
+.term-row--head { border-bottom: 1px solid #e5e7eb; }
+.term-row__check { width: 16px; height: 16px; cursor: pointer; }
+.term-row__head-label { font-size: 0.8rem; font-weight: 600; color: #6b7280; }
 .term-row__name { font-weight: 600; font-size: 0.9rem; }
 .term-row__slug { font-family: monospace; font-size: 0.8rem; color: #6b7280; flex: 1; }
 .term-row__excl { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; border: 1px solid #d1d5db; background: #f3f4f6; cursor: pointer; color: #374151; }

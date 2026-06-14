@@ -10,6 +10,17 @@
 import type { IPlugin, IPlatformSDK } from 'vbwd-view-component';
 import { extensionRegistry } from '../../vue/src/plugins/extensionRegistry';
 import './src/cms-admin.css';
+
+// Shared widget-editor seam (D9). Re-exported from this stable plugin path so
+// another fe-admin plugin (e.g. meinchat-admin) can register its own
+// vue-component widget editor through the SAME registry — OCP, no plugin
+// strings in cms-admin. Re-export only; no behaviour change.
+export {
+  registerWidgetEditor,
+  getWidgetEditor,
+} from './src/widgets/widgetEditorRegistry';
+export type { VueWidgetEditorDescriptor } from './src/widgets/widgetEditorRegistry';
+
 import en from './locales/en.json';
 import ru from './locales/ru.json';
 import de from './locales/de.json';

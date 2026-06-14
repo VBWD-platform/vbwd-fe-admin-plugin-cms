@@ -42,10 +42,14 @@ const i18n = createI18n({
   messages: { en },
 });
 
+// D7: the backend no longer registers the ``tag`` term type (tags moved to the
+// single core catalog, managed under Settings → Custom Fields → Global tags).
+// The registry now carries ``category`` (+ any plugin custom type). The tabs are
+// registry-driven, so the "Tag" tab disappears automatically.
 const TERM_TYPES = {
   term_types: [
     { key: 'category', label: 'Category', hierarchical: true },
-    { key: 'tag', label: 'Tag', hierarchical: false },
+    { key: 'topic', label: 'Topic', hierarchical: false },
   ],
 };
 
@@ -95,7 +99,16 @@ describe('TermManager.vue', () => {
     const wrapper = await mountManager();
     const tabs = wrapper.findAll('[data-testid="term-type-tab"]');
     expect(tabs.map((t) => t.text())).toContain('Category');
-    expect(tabs.map((t) => t.text())).toContain('Tag');
+    expect(tabs.map((t) => t.text())).toContain('Topic');
+  });
+
+  it('no longer shows a Tag tab (D7 — tags moved to the core catalog)', async () => {
+    const wrapper = await mountManager();
+    const tabLabels = wrapper.findAll('[data-testid="term-type-tab"]').map((t) => t.text());
+    expect(tabLabels).not.toContain('Tag');
+    // category management is unaffected — its tab + rows still render.
+    expect(tabLabels).toContain('Category');
+    expect(wrapper.findAll('[data-testid="term-row"]')).toHaveLength(2);
   });
 
   it('renders terms of the active type, with hierarchy depth for hierarchical types', async () => {
@@ -145,7 +158,7 @@ describe('TermManager.vue', () => {
     await flushPromises();
     await wrapper.find('[data-testid="term-search"]').setValue('world');
     await flushPromises();
-    // switch to the Tag tab
+    // switch to the second (Topic) tab
     const tabs = wrapper.findAll('[data-testid="term-type-tab"]');
     await tabs[1].trigger('click');
     await flushPromises();
@@ -210,5 +223,107 @@ describe('TermManager.vue', () => {
     expect(wrapper.find('[data-testid="term-export"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="term-import"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="term-import-input"]').exists()).toBe(false);
+  });
+
+  // ── Bulk selection + bulk delete (Categories AND Tags tabs) ────────────────
+  describe('bulk delete', () => {
+    it('hides the bulk bar when nothing is selected', async () => {
+      const wrapper = await mountManager();
+      await flushPromises();
+      expect(wrapper.find('[data-testid="bulk-bar"]').exists()).toBe(false);
+    });
+
+    it('toggling a row checkbox selects that term and shows the bulk bar', async () => {
+      const wrapper = await mountManager();
+      await flushPromises();
+      await wrapper.find('[data-testid="term-row-select-cat-1"]').setValue(true);
+      await flushPromises();
+      const bar = wrapper.find('[data-testid="bulk-bar"]');
+      expect(bar.exists()).toBe(true);
+      expect(bar.text()).toContain('1 selected');
+    });
+
+    it('select-all selects every visible term of the active type', async () => {
+      const wrapper = await mountManager();
+      await flushPromises();
+      await wrapper.find('[data-testid="term-select-all"]').setValue(true);
+      await flushPromises();
+      const bar = wrapper.find('[data-testid="bulk-bar"]');
+      expect(bar.exists()).toBe(true);
+      expect(bar.text()).toContain('2 selected');
+    });
+
+    it('bulk-delete calls the store with selected ids then refetches and clears', async () => {
+      (api.post as any).mockResolvedValue({ deleted: 2 });
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      const wrapper = await mountManager();
+      await flushPromises();
+
+      await wrapper.find('[data-testid="term-select-all"]').setValue(true);
+      await flushPromises();
+      const fetchCallsBefore = (api.get as any).mock.calls.filter(
+        (c: unknown[]) => c[0] === '/admin/cms/terms',
+      ).length;
+
+      await wrapper.find('[data-testid="bulk-delete"]').trigger('click');
+      await flushPromises();
+
+      expect(api.post).toHaveBeenCalledWith('/admin/cms/terms/bulk', { ids: ['cat-1', 'cat-2'] });
+      // refetched the active type after delete
+      const fetchCallsAfter = (api.get as any).mock.calls.filter(
+        (c: unknown[]) => c[0] === '/admin/cms/terms',
+      ).length;
+      expect(fetchCallsAfter).toBeGreaterThan(fetchCallsBefore);
+      // selection cleared → bar gone
+      expect(wrapper.find('[data-testid="bulk-bar"]').exists()).toBe(false);
+      confirmSpy.mockRestore();
+    });
+
+    it('does not call the store when the confirm dialog is cancelled', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      const wrapper = await mountManager();
+      await flushPromises();
+      await wrapper.find('[data-testid="term-row-select-cat-1"]').setValue(true);
+      await flushPromises();
+      await wrapper.find('[data-testid="bulk-delete"]').trigger('click');
+      await flushPromises();
+      expect(api.post).not.toHaveBeenCalledWith('/admin/cms/terms/bulk', expect.anything());
+      confirmSpy.mockRestore();
+    });
+
+    it('clearing selection hides the bulk bar', async () => {
+      const wrapper = await mountManager();
+      await flushPromises();
+      await wrapper.find('[data-testid="term-row-select-cat-1"]').setValue(true);
+      await flushPromises();
+      await wrapper.find('[data-testid="bulk-clear"]').trigger('click');
+      await flushPromises();
+      expect(wrapper.find('[data-testid="bulk-bar"]').exists()).toBe(false);
+    });
+
+    it('switching term types clears the selection', async () => {
+      const wrapper = await mountManager();
+      await flushPromises();
+      await wrapper.find('[data-testid="term-row-select-cat-1"]').setValue(true);
+      await flushPromises();
+      expect(wrapper.find('[data-testid="bulk-bar"]').exists()).toBe(true);
+
+      const tabs = wrapper.findAll('[data-testid="term-type-tab"]');
+      await tabs[1].trigger('click'); // Topic tab
+      await flushPromises();
+      expect(wrapper.find('[data-testid="bulk-bar"]').exists()).toBe(false);
+    });
+
+    it('hides the bulk-delete action when the user cannot manage', async () => {
+      const auth = useAuthStore();
+      auth.$patch({
+        user: { id: '2', email: 'viewer@test.com', role: 'ADMIN', permissions: [] },
+      });
+      const wrapper = await mountManager();
+      await flushPromises();
+      // no per-row select checkboxes when management is disabled
+      expect(wrapper.find('[data-testid="term-row-select-cat-1"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="term-select-all"]').exists()).toBe(false);
+    });
   });
 });
