@@ -7,6 +7,14 @@
           : (form.type === 'page' ? $t('cms.editPage', 'Edit page') : $t('cms.editPost', 'Edit post')) }}
       </h2>
       <div class="post-editor__actions">
+        <!-- AI-agnostic header-action seam (S41): sibling plugins inject the
+             AI ✨ dropdown here, before Save. Empty registry → nothing renders. -->
+        <component
+          :is="action"
+          v-for="(action, index) in headerActionComponents"
+          :key="`cms-editor-header-action-${index}`"
+          :context="editorContext"
+        />
         <button
           type="button"
           class="btn btn--ghost"
@@ -51,6 +59,15 @@
     >
       {{ store.error }}
     </div>
+
+    <!-- AI-agnostic panel seam (S41): rendered between the header and the body.
+         Sibling plugins mount the collapsible AI panel here. Empty → nothing. -->
+    <component
+      :is="panel"
+      v-for="(panel, index) in panelComponents"
+      :key="`cms-editor-panel-${index}`"
+      :context="editorContext"
+    />
 
     <div
       class="post-editor__body"
@@ -722,6 +739,7 @@
               :entity-id="id"
             />
             <CustomFieldsEditor
+              ref="customFieldsEditorRef"
               :entity-type="coreEntityType"
               :entity-id="id"
             />
@@ -758,6 +776,12 @@ import TipTapEditor from '../components/TipTapEditor.vue';
 import TagPicker from '@/components/TagPicker.vue';
 import CustomFieldsEditor from '@/components/CustomFieldsEditor.vue';
 import { buildPostUrl, feUserBaseUrl as resolveFeUserBaseUrl } from '../utils/postUrl';
+import {
+  getCmsEditorHeaderActions,
+  getCmsEditorPanels,
+  type CmsEditorContext,
+  type CmsEditorPatch,
+} from '../editor/cmsEditorExtensionRegistry';
 
 const SERP_TITLE_MAX = 60;
 const SERP_DESC_MAX = 160;
@@ -1199,6 +1223,89 @@ watch(() => form.value.type, (type) => {
   if (type === 'post') activeContentTab.value = 'Visual';
   else if (activeContentTab.value === 'Visual') activeContentTab.value = 'HTML';
 });
+
+// ── AI-agnostic editor seams (S41) ───────────────────────────────────────
+// cms-admin exposes two slots so an AI plugin can inject the AI ✨ dropdown and
+// the collapsible panel without cms-admin importing it. The slots receive one
+// narrow `CmsEditorContext` (form + applyPatch + getContext). When the registry
+// is empty, nothing renders — the editor behaves exactly as before.
+const headerActionComponents = computed(() => getCmsEditorHeaderActions());
+const panelComponents = computed(() => getCmsEditorPanels());
+
+// The set of core PostForm keys a patch may write directly onto `form`. Any
+// other key is a custom field (e.g. S77) and is routed separately.
+const AI_WRITABLE_FORM_KEYS = new Set<keyof PostForm>([
+  'content_html',
+  'source_css',
+  'excerpt',
+  'title',
+  'meta_title',
+  'meta_description',
+  'meta_keywords',
+  'og_title',
+  'og_description',
+  'schema_json',
+]);
+
+// The mounted S77 custom-fields editor (edit mode only). Its `setValues` write
+// seam lets a patch fill the custom-field inputs as if the operator typed them;
+// S77 persists them on its own Save (§3.6). When it is not mounted (new mode /
+// S77 disabled) custom-field keys degrade into the bucket below.
+type CustomFieldsEditorSeam = { setValues(partial: Record<string, unknown>): void };
+const customFieldsEditorRef = ref<CustomFieldsEditorSeam | null>(null);
+
+// Custom-field values produced by a patch while the S77 editor is not mounted
+// (graceful degrade). They travel back via getContext so the request keeps its
+// context; once the editor is mounted, patches flow straight into its inputs.
+const aiCustomFields = ref<Record<string, unknown>>({});
+
+function applyEditorPatch(patch: CmsEditorPatch): void {
+  const customFieldPatch: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null || value === undefined) continue;
+    if (AI_WRITABLE_FORM_KEYS.has(key as keyof PostForm)) {
+      (form.value as Record<string, unknown>)[key] = value;
+      // Keep the SEO schema textarea in sync when schema_json is patched.
+      if (key === 'schema_json') {
+        schemaJsonText.value = JSON.stringify(value, null, 2);
+      }
+      // Seed the Visual (TipTap) body editor with the AI HTML so it both
+      // reflects the patch and does not echo a normalized (possibly empty)
+      // value back over content_html. setFromHtml emits the verbatim HTML and
+      // marks the doc non-empty, suppressing the htmlValue re-seed watch. Pages
+      // have no TipTap editor (CodeMirror is already controlled via v-model).
+      if (key === 'content_html') {
+        tiptapEditor.value?.setFromHtml(value as string);
+      }
+    } else {
+      customFieldPatch[key] = value;
+    }
+  }
+  if (Object.keys(customFieldPatch).length === 0) return;
+  // Prefer the mounted S77 editor's write seam; degrade to the bucket otherwise.
+  if (customFieldsEditorRef.value) {
+    customFieldsEditorRef.value.setValues(customFieldPatch);
+  } else {
+    Object.assign(aiCustomFields.value, customFieldPatch);
+  }
+}
+
+function buildEditorContext(options: { readExcerpt: boolean }) {
+  const customFields = aiCustomFields.value;
+  return {
+    title: form.value.title,
+    excerpt: options.readExcerpt ? form.value.excerpt : '',
+    content_html: form.value.content_html,
+    type: form.value.type,
+    ...(Object.keys(customFields).length ? { custom_fields: { ...customFields } } : {}),
+  };
+}
+
+const editorContext: CmsEditorContext<PostForm> = {
+  form,
+  applyPatch: applyEditorPatch,
+  getContext: buildEditorContext,
+};
 
 async function save() {
   // content_html is the source of truth; content_json carries the same markup
