@@ -13,6 +13,8 @@ import SearchEditorTab from './SearchEditorTab.vue';
 import SearchResultsEditorTab from './SearchResultsEditorTab.vue';
 import CategoryEditorTab from './CategoryEditorTab.vue';
 import AddonCatalogEditorTab from './AddonCatalogEditorTab.vue';
+import TariffPlanCollectionEditorTab from './TariffPlanCollectionEditorTab.vue';
+import TokenBundleCollectionEditorTab from './TokenBundleCollectionEditorTab.vue';
 
 // ── CmsBreadcrumb ─────────────────────────────────────────────────────────────
 
@@ -271,6 +273,86 @@ registerWidgetEditor({
       html: `${headingHtml}<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1.5rem">
   ${card('Extra Tokens', '5.00 EUR')}
   ${card('Priority Support', '12.00 EUR')}
+</div>`,
+    };
+  },
+});
+
+// ── TariffPlanCollection ──────────────────────────────────────────────────────
+// fe-user component TariffPlanCollection.vue — lists subscription tarif plans,
+// either by category or an explicit slug set, as cards or a table.
+
+registerWidgetEditor({
+  componentName: 'TariffPlanCollection',
+
+  defaultConfig: () => ({
+    component_name: 'TariffPlanCollection',
+    source_mode: 'category',
+    category: 'root',
+    plan_slugs: [],
+    default_view: 'cards',
+    heading: '',
+  }),
+
+  generalTabComponent: TariffPlanCollectionEditorTab,
+
+  cssHint: 'Target <code>.tariff-plan-collection</code>, <code>.tariff-plan-collection__heading</code>, and the shared plan/table card styles.',
+
+  buildPreview(config) {
+    const heading = (config.heading as string) || '';
+    const headingHtml = heading
+      ? `<h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">${heading}</h2>`
+      : '';
+    const card = (name: string, price: string) =>
+      `<div style="border:1px solid #ddd;border-radius:8px;padding:1.25rem;text-align:center">
+  <h3 style="font-size:1.0625rem;font-weight:600;margin:0 0 .5rem">${name}</h3>
+  <p style="font-size:1.3rem;font-weight:700;color:#3498db;margin:0 0 .75rem">${price}</p>
+  <button style="width:100%;padding:10px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer">Choose</button>
+</div>`;
+    return {
+      html: `${headingHtml}<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1.25rem">
+  ${card('Basic', '9 EUR')}
+  ${card('Pro', '29 EUR')}
+  ${card('Enterprise', '99 EUR')}
+</div>`,
+    };
+  },
+});
+
+// ── TokenBundleCollection ─────────────────────────────────────────────────────
+// fe-user component TokenBundleCollection.vue — lists active token bundles,
+// either all or an explicit id set, as cards or a table.
+
+registerWidgetEditor({
+  componentName: 'TokenBundleCollection',
+
+  defaultConfig: () => ({
+    component_name: 'TokenBundleCollection',
+    bundle_ids: [],
+    default_view: 'cards',
+    heading: '',
+  }),
+
+  generalTabComponent: TokenBundleCollectionEditorTab,
+
+  cssHint: 'Target <code>.token-bundle-collection</code>, <code>.token-bundle-collection__heading</code>, and the shared bundle/table card styles.',
+
+  buildPreview(config) {
+    const heading = (config.heading as string) || '';
+    const headingHtml = heading
+      ? `<h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">${heading}</h2>`
+      : '';
+    const card = (tokens: string, price: string) =>
+      `<div style="border:1px solid #ddd;border-radius:8px;padding:1.25rem;text-align:center">
+  <h3 style="font-size:1.0625rem;font-weight:600;margin:0 0 .5rem">${tokens} Tokens</h3>
+  <p style="font-size:1.3rem;font-weight:700;color:#3498db;margin:0 0 .75rem">${price}</p>
+  <button style="width:100%;padding:10px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer">Add to cart</button>
+</div>`;
+    return {
+      html: `${headingHtml}<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1.25rem">
+  ${card('1,000', '5 EUR')}
+  ${card('5,000', '20 EUR')}
+  ${card('20,000', '70 EUR')}
 </div>`,
     };
   },

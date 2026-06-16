@@ -20,6 +20,32 @@
 .editor-pane__hint { margin-top: 0.5rem; font-size: 0.78rem; color: #6b7280; }
 .editor-pane__hint code { background: #f3f4f6; border-radius: 3px; padding: 0 3px; font-family: monospace; }
 
+/* Checkbox picker list — plan/bundle selectors in the vue-component editor tabs
+   (NativePricingPlans, TariffPlanCollection, TokenBundleCollection). */
+.plan-picker {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+}
+.plan-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f3f5;
+}
+.plan-picker__item:last-child { border-bottom: none; }
+.plan-picker__item:hover { background: #f8fafc; }
+.plan-picker__item input[type="checkbox"] { flex: none; margin: 0; }
+.plan-picker__price { margin-left: auto; color: #6b7280; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
 .btn { padding: 0.45rem 1rem; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; cursor: pointer; font-size: 0.875rem; text-decoration: none; display: inline-block; }
 .btn--ghost  { color: #374151; display: inline-flex; align-items: center; }
 .btn--primary { background: #3b82f6; color: #fff; border-color: #3b82f6; }
