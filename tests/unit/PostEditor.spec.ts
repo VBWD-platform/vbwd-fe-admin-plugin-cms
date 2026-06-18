@@ -9,6 +9,7 @@ import { api } from '@/api';
 import { configureAuthStore, useAuthStore } from '@/stores/auth';
 import PostEditor from '../../src/views/PostEditor.vue';
 import en from '../../locales/en.json';
+import { registerWidgetEditor } from '../../src/widgets/widgetEditorRegistry';
 
 vi.mock('@/api', () => ({
   api: {
@@ -31,16 +32,37 @@ const i18n = createI18n({
 // heavy codemirror runtime. Mirrors the real component's v-model contract.
 const CodeMirrorStub = {
   name: 'CodeMirrorEditor',
+  inheritAttrs: false,
   props: ['modelValue', 'lang', 'minHeight'],
   emits: ['update:modelValue'],
+  computed: {
+    // Honour an explicit data-testid passed by the host (e.g. the per-page
+    // widget config fields), else fall back to the lang-keyed default.
+    testid(): string {
+      return ((this as any).$attrs['data-testid'] as string) ?? `cm-${(this as any).lang}`;
+    },
+  },
   methods: {
     insertAtCursor(text: string) {
       (this as any).$emit('update:modelValue', ((this as any).modelValue ?? '') + text);
     },
   },
   template:
-    '<textarea :data-testid="`cm-${lang}`" :value="modelValue" ' +
+    '<textarea :data-testid="testid" :value="modelValue" ' +
     '@input="$emit(\'update:modelValue\', $event.target.value)" />',
+};
+
+// Stand-in for the menu tree editor: a button that appends a fixed item so a
+// test can drive an update:modelValue without the full tree-editor runtime.
+const MenuTreeStub = {
+  name: 'CmsMenuTreeEditor',
+  props: ['modelValue'],
+  emits: ['update:modelValue'],
+  template:
+    '<button data-testid="menu-add-item" type="button" ' +
+    "@click=\"$emit('update:modelValue', [...(modelValue ?? []), " +
+    "{ id: 'mi-new', parent_id: null, label: 'Added', url: '/added', page_slug: null }])\">" +
+    'add</button>',
 };
 
 // Stand-in for the TipTap-backed WYSIWYG editor: avoids loading the heavy
@@ -114,12 +136,29 @@ const MULTI_AREA_LAYOUTS = {
   total: 1, page: 1, per_page: 100, pages: 1,
 };
 
+// An html widget seeds the per-page editor from its base64 content_json.content
+// + source_css — decoded the same way the renderer does.
+function encodeWidgetHtml(html: string): string {
+  return btoa(unescape(encodeURIComponent(html)));
+}
+
 const WIDGETS = {
   items: [
-    { id: 'wid-1', slug: 'promo', name: 'Promo Widget', widget_type: 'html', sort_order: 0, is_active: true },
+    {
+      id: 'wid-1', slug: 'promo', name: 'Promo Widget', widget_type: 'html', sort_order: 0, is_active: true,
+      content_json: { content: encodeWidgetHtml('<p>Promo default</p>') }, source_css: '.promo{}',
+    },
     { id: 'wid-2', slug: 'newsletter', name: 'Newsletter Widget', widget_type: 'html', sort_order: 1, is_active: true },
   ],
   total: 2, page: 1, per_page: 200, pages: 1,
+};
+
+// A menu widget carrying its own items (the single-widget GET supplies them).
+const MENU_WIDGET = {
+  id: 'wid-menu', slug: 'main-menu', name: 'Main Menu', widget_type: 'menu',
+  source_css: '.cms-menu{}',
+  menu_items: [{ id: 'mi-1', parent_id: null, label: 'Home', url: '/', page_slug: null }],
+  sort_order: 3, is_active: true,
 };
 
 const STYLES = {
@@ -129,6 +168,36 @@ const STYLES = {
   ],
   total: 2, page: 1, per_page: 100, pages: 1,
 };
+
+// A vue-component widget whose config editor descriptor is registered below,
+// so the PostEditor can offer a per-page config collapsible for it.
+const VUE_WIDGET = {
+  id: 'wid-vue', slug: 'addon-catalog', name: 'Addon Catalog', widget_type: 'vue-component',
+  config: { component_name: 'AddonCatalog', heading: 'Default heading' },
+  sort_order: 2, is_active: true,
+};
+
+const WIDGETS_WITH_VUE = {
+  items: [...WIDGETS.items, VUE_WIDGET, MENU_WIDGET],
+  total: 4, page: 1, per_page: 200, pages: 1,
+};
+
+// A General-tab editor exposing v-model:config — edits the `heading` field.
+const ConfigEditorStub = {
+  name: 'ConfigEditorStub',
+  props: { config: { type: Object, default: () => ({}) } },
+  emits: ['update:config'],
+  template:
+    '<input data-testid="cfg-heading" :value="config.heading" ' +
+    "@input=\"$emit('update:config', { ...config, heading: $event.target.value })\" />",
+};
+
+registerWidgetEditor({
+  componentName: 'AddonCatalog',
+  defaultConfig: () => ({ heading: 'Default heading' }),
+  generalTabComponent: ConfigEditorStub,
+  buildPreview: () => ({ html: '' }),
+});
 
 function primeApi(layouts: unknown = LAYOUTS) {
   (api.get as any).mockImplementation((url: string, opts?: any) => {
@@ -162,7 +231,12 @@ async function mountEditor(routeName = 'cms-post-new', params: Record<string, st
   const wrapper = mount(PostEditor, {
     global: {
       plugins: [i18n, router],
-      stubs: { CodeMirrorEditor: CodeMirrorStub, TipTapEditor: TipTapStub, CmsImagePicker: true },
+      stubs: {
+        CodeMirrorEditor: CodeMirrorStub,
+        TipTapEditor: TipTapStub,
+        CmsMenuTreeEditor: MenuTreeStub,
+        CmsImagePicker: true,
+      },
     },
   });
   await flushPromises();
@@ -212,18 +286,21 @@ describe('PostEditor.vue', () => {
     expect((wrapper.vm as any).form.type_data.venue).toBe('Berlin Hall');
   });
 
-  it('populates the category term picker from the API', async () => {
+  it('populates the category quicksearch from the API', async () => {
     const { wrapper } = await mountEditor();
-    const catOptions = wrapper.find('[data-testid="term-picker-category"]').findAll('option');
-    // includes the two categories
-    const values = catOptions.map((o) => o.attributes('value'));
-    expect(values).toContain('cat-1');
-    expect(values).toContain('cat-2');
+    // The category picker is a typeahead: typing filters the loaded categories.
+    const picker = wrapper.find('[data-testid="term-picker-category"]');
+    await picker.find('[data-testid="searchable-term-input"]').setValue('New');
+    await flushPromises();
+    const options = picker.findAll('[data-testid="searchable-term-option"]');
+    expect(options.map((option) => option.text())).toContain('News');
   });
 
-  it('adds a category as a removable chip above the selector', async () => {
+  it('adds a category via quicksearch as a removable chip', async () => {
     const { wrapper } = await mountEditor();
-    await wrapper.find('[data-testid="term-picker-category"]').setValue('cat-1');
+    const picker = wrapper.find('[data-testid="term-picker-category"]');
+    await picker.find('[data-testid="searchable-term-input"]').setValue('News');
+    await picker.find('[data-testid="searchable-term-option"]').trigger('mousedown');
     await flushPromises();
     expect(wrapper.find('[data-testid="selected-categories"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="remove-category-cat-1"]').exists()).toBe(true);
@@ -235,12 +312,105 @@ describe('PostEditor.vue', () => {
     expect((wrapper.vm as any).selectedTermIds).not.toContain('cat-1');
   });
 
-  it('shows selected tags as a removable cloud', async () => {
+  it('renders the cms_term tag picker (not the generic TagPicker)', async () => {
     const { wrapper } = await mountEditor();
-    await wrapper.find('[data-testid="term-picker-tag"]').setValue('tag-1');
+    // Tags are a cms_term taxonomy again (S77 reversal): the editor uses the
+    // SearchableTermSelect tag picker. The generic vbwd_tag TagPicker is gone.
+    expect(wrapper.find('[data-testid="term-picker-tag"]').exists()).toBe(true);
+    expect(wrapper.findComponent({ name: 'TagPicker' }).exists()).toBe(false);
+  });
+
+  it('filters loaded tag terms via the tag quicksearch', async () => {
+    const { wrapper } = await mountEditor();
+    const picker = wrapper.find('[data-testid="term-picker-tag"]');
+    await picker.find('[data-testid="searchable-term-input"]').setValue('Ho');
     await flushPromises();
-    expect(wrapper.find('[data-testid="tags-cloud"]').exists()).toBe(true);
+    const options = picker.findAll('[data-testid="searchable-term-option"]');
+    expect(options.map((option) => option.text())).toContain('Hot');
+  });
+
+  it('adds a tag term via quicksearch as a removable chip', async () => {
+    const { wrapper } = await mountEditor();
+    const picker = wrapper.find('[data-testid="term-picker-tag"]');
+    await picker.find('[data-testid="searchable-term-input"]').setValue('Hot');
+    await picker.find('[data-testid="searchable-term-option"]').trigger('mousedown');
+    await flushPromises();
+    expect(wrapper.find('[data-testid="selected-tags"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="remove-tag-tag-1"]').exists()).toBe(true);
+    expect((wrapper.vm as any).selectedTermIds).toContain('tag-1');
+
+    await wrapper.find('[data-testid="remove-tag-tag-1"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-testid="remove-tag-tag-1"]').exists()).toBe(false);
+    expect((wrapper.vm as any).selectedTermIds).not.toContain('tag-1');
+  });
+
+  it('inline-creates a new cms_term tag and selects it', async () => {
+    // saveTerm POSTs a new cms_term('tag') and returns it; the editor adds the
+    // returned id to the selection (and reloads the tag terms so the chip can
+    // resolve its name). The mount-time tag list excludes 'Fresh' so the
+    // typeahead offers the create option; the post-create reload includes it.
+    const NEW_TAG = { id: 'tag-new', term_type: 'tag', slug: 'fresh', name: 'Fresh', parent_id: null, seo_excluded: false, sort_order: 0 };
+    let tagCreated = false;
+    (api.post as any).mockImplementation((url: string) => {
+      if (url === '/admin/cms/terms') {
+        tagCreated = true;
+        return Promise.resolve(NEW_TAG);
+      }
+      return Promise.resolve({});
+    });
+    (api.get as any).mockImplementation((url: string, opts?: any) => {
+      if (url === '/admin/cms/post-types') return Promise.resolve(POST_TYPES);
+      if (url === '/admin/cms/term-types') return Promise.resolve(TERM_TYPES);
+      if (url === '/admin/cms/layouts') return Promise.resolve(LAYOUTS);
+      if (url === '/admin/cms/styles') return Promise.resolve(STYLES);
+      if (url === '/admin/cms/widgets') return Promise.resolve(WIDGETS);
+      if (url === '/admin/cms/terms') {
+        const type = opts?.params?.type;
+        if (type === 'category') return Promise.resolve(CATEGORIES);
+        if (type === 'tag') return Promise.resolve(tagCreated ? [...TAGS, NEW_TAG] : TAGS);
+        return Promise.resolve([]);
+      }
+      return Promise.resolve({});
+    });
+    const { wrapper } = await mountEditor();
+    const picker = wrapper.find('[data-testid="term-picker-tag"]');
+    await picker.find('[data-testid="searchable-term-input"]').setValue('Fresh');
+    await flushPromises();
+    await picker.find('[data-testid="searchable-term-create"]').trigger('mousedown');
+    await flushPromises();
+
+    // The create POSTed a cms_term('tag') and the returned id is selected.
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/terms', { term_type: 'tag', name: 'Fresh' });
+    expect((wrapper.vm as any).selectedTermIds).toContain('tag-new');
+    expect(wrapper.find('[data-testid="remove-tag-tag-new"]').exists()).toBe(true);
+  });
+
+  it('sends selected tag term ids in the assignTerms PUT on save', async () => {
+    (api.post as any).mockResolvedValue({ id: 'p-tg', type: 'post', slug: 'tg', title: 'TG' });
+    (api.put as any).mockResolvedValue({ post_id: 'p-tg', term_ids: ['cat-1', 'tag-1'] });
+    const { wrapper } = await mountEditor();
+    await wrapper.find('[data-testid="post-title"]').setValue('TG');
+    await wrapper.find('[data-testid="post-slug"]').setValue('tg');
+
+    // Select a category + a tag via their quicksearch pickers.
+    const catPicker = wrapper.find('[data-testid="term-picker-category"]');
+    await catPicker.find('[data-testid="searchable-term-input"]').setValue('News');
+    await catPicker.find('[data-testid="searchable-term-option"]').trigger('mousedown');
+    const tagPicker = wrapper.find('[data-testid="term-picker-tag"]');
+    await tagPicker.find('[data-testid="searchable-term-input"]').setValue('Hot');
+    await tagPicker.find('[data-testid="searchable-term-option"]').trigger('mousedown');
+    await flushPromises();
+
+    await (wrapper.vm as any).save();
+    await flushPromises();
+
+    const termCall = (api.put as any).mock.calls.find(
+      (call: unknown[]) => call[0] === '/admin/cms/posts/p-tg/terms',
+    );
+    expect(termCall).toBeTruthy();
+    expect(termCall[1].term_ids).toContain('tag-1');
+    expect(termCall[1].term_ids).toContain('cat-1');
   });
 
   it('loads existing term_ids as chips when editing', async () => {
@@ -266,8 +436,10 @@ describe('PostEditor.vue', () => {
       return Promise.resolve({});
     });
     const { wrapper } = await mountEditor('cms-post-edit', { id: 'p-t' });
+    // Both the category chip and the cms_term tag chip render from term_ids.
     expect(wrapper.find('[data-testid="remove-category-cat-1"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="remove-tag-tag-1"]').exists()).toBe(true);
+    expect((wrapper.vm as any).selectedTermIds).toContain('tag-1');
   });
 
   it('shows the parent picker only for hierarchical types', async () => {
@@ -797,7 +969,7 @@ describe('PostEditor.vue', () => {
       // Only the 'cta' page-widget area gets a selector.
       const selector = wrapper.find('[data-testid="page-widget-select-cta"]');
       expect(selector.exists()).toBe(true);
-      // Chrome areas (header / footer / vue) must NOT get a per-page override.
+      // Chrome areas (header / footer) + content must NOT get a per-page override.
       expect(wrapper.find('[data-testid="page-widget-select-header"]').exists()).toBe(false);
       // Exactly one widget row, for the single page-widget area.
       expect(wrapper.findAll('.page-widget-row')).toHaveLength(1);
@@ -805,6 +977,53 @@ describe('PostEditor.vue', () => {
       const values = selector.findAll('option').map((o) => o.attributes('value'));
       expect(values).toContain('wid-1');
       expect(values).toContain('wid-2');
+    });
+
+    it('shows ONLY page-widget areas — vue / vue-component / chrome / content never appear', async () => {
+      vi.clearAllMocks();
+      primeApi({
+        items: [{
+          id: 'lay-mixed', slug: 'mixed', name: 'Mixed Areas', sort_order: 0, is_active: true,
+          areas: [
+            { name: 'header', type: 'header', label: 'Header' },
+            { name: 'content', type: 'content', label: 'Main' },
+            { name: 'main', type: 'vue-component', label: 'Main Component' },
+            { name: 'chat', type: 'vue', label: 'Chat' },
+            { name: 'cta', type: 'page-widget', label: 'Call to action' },
+          ],
+        }],
+        total: 1, page: 1, per_page: 100, pages: 1,
+      });
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-mixed';
+      await flushPromises();
+      // Only the page-widget area gets an override selector.
+      expect(wrapper.find('[data-testid="page-widget-select-cta"]').exists()).toBe(true);
+      // vue / vue-component / chrome / content areas must NOT appear.
+      expect(wrapper.find('[data-testid="page-widget-select-main"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="page-widget-select-chat"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="page-widget-select-header"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="page-widget-select-content"]').exists()).toBe(false);
+      expect(wrapper.findAll('.page-widget-row')).toHaveLength(1);
+    });
+
+    it('renders the per-page config block as a sibling AFTER the row, not inside it', async () => {
+      vi.clearAllMocks();
+      primeApi(MULTI_AREA_LAYOUTS);
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      (wrapper.vm as any).form.page_widgets = [
+        { widget_id: 'wid-vue', area_name: 'cta', sort_order: 0, required_access_level_ids: [] },
+      ];
+      // make the vue widget resolvable for the config block
+      (wrapper.vm as any).store.widgets = { items: WIDGETS_WITH_VUE.items };
+      await flushPromises();
+      const row = wrapper.find('[data-testid="page-widget-row-cta"]');
+      const config = wrapper.find('[data-testid="page-widget-config-cta"]');
+      expect(row.exists()).toBe(true);
+      expect(config.exists()).toBe(true);
+      // The config block must NOT be nested inside the row.
+      expect(row.find('[data-testid="page-widget-config-cta"]').exists()).toBe(false);
     });
 
     it('hides the page-widgets panel when the layout has no page-widget area', async () => {
@@ -933,6 +1152,192 @@ describe('PostEditor.vue', () => {
       // The selector reflects the loaded assignment.
       expect((wrapper.find('[data-testid="page-widget-select-cta"]').element as HTMLSelectElement).value)
         .toBe('wid-2');
+    });
+  });
+
+  // ── Per-page widget config override (collapsible in the Page widgets panel) ─
+  describe('per-page widget config override', () => {
+    function primeApiWithVueWidget() {
+      (api.get as any).mockImplementation((url: string, opts?: any) => {
+        if (url === '/admin/cms/post-types') return Promise.resolve(POST_TYPES);
+        if (url === '/admin/cms/term-types') return Promise.resolve(TERM_TYPES);
+        if (url === '/admin/cms/layouts') return Promise.resolve(MULTI_AREA_LAYOUTS);
+        if (url === '/admin/cms/styles') return Promise.resolve(STYLES);
+        if (url === '/admin/cms/widgets') return Promise.resolve(WIDGETS_WITH_VUE);
+        if (url === '/admin/cms/terms') {
+          const type = opts?.params?.type;
+          if (type === 'category') return Promise.resolve(CATEGORIES);
+          if (type === 'tag') return Promise.resolve(TAGS);
+          return Promise.resolve([]);
+        }
+        return Promise.resolve({});
+      });
+    }
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      primeApiWithVueWidget();
+    });
+
+    it('hides the config collapsible when the area is on layout default', async () => {
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+      expect(wrapper.find('[data-testid="page-widget-config-cta"]').exists()).toBe(false);
+    });
+
+    it('reveals the config collapsible for ANY selected widget (html, vue, menu)', async () => {
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+
+      // An html widget (wid-1) now reveals the per-page editor (HTML + CSS).
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('wid-1');
+      await flushPromises();
+      const htmlBlock = wrapper.find('[data-testid="page-widget-config-cta"]');
+      expect(htmlBlock.exists()).toBe(true);
+      expect(htmlBlock.find('[data-testid="widget-config-html"]').exists()).toBe(true);
+      expect(htmlBlock.find('[data-testid="widget-config-css"]').exists()).toBe(true);
+
+      // The vue-component widget (wid-vue) shows its descriptor field + CSS.
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('wid-vue');
+      await flushPromises();
+      const vueBlock = wrapper.find('[data-testid="page-widget-config-cta"]');
+      expect(vueBlock.exists()).toBe(true);
+      expect(vueBlock.find('[data-testid="cfg-heading"]').exists()).toBe(true);
+      expect(vueBlock.find('[data-testid="widget-config-css"]').exists()).toBe(true);
+
+      // A menu widget shows the tree editor + CSS.
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('wid-menu');
+      await flushPromises();
+      const menuBlock = wrapper.find('[data-testid="page-widget-config-cta"]');
+      expect(menuBlock.exists()).toBe(true);
+      expect(menuBlock.find('[data-testid="menu-add-item"]').exists()).toBe(true);
+      expect(menuBlock.find('[data-testid="widget-config-css"]').exists()).toBe(true);
+    });
+
+    it('writes a vue-component override into config_override.config + source_css and PUTs it', async () => {
+      (api.post as any).mockResolvedValue({ id: 'cfg-id', type: 'page', slug: 'multi', title: 'Multi' });
+      (api.put as any).mockResolvedValue({});
+      const { wrapper } = await mountEditor();
+      await wrapper.find('[data-testid="post-title"]').setValue('Multi');
+      await wrapper.find('[data-testid="post-slug"]').setValue('multi');
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('wid-vue');
+      await flushPromises();
+      // Edit the descriptor field — writes into config_override.config.
+      await wrapper.find('[data-testid="cfg-heading"]').setValue('Per-page heading');
+      await flushPromises();
+
+      const assignment = (wrapper.vm as any).form.page_widgets.find(
+        (w: { area_name: string }) => w.area_name === 'cta',
+      );
+      // The editor seeds from the widget's own config, so the override.config
+      // carries the full config with the edited field on top, plus source_css.
+      expect(assignment.config_override).toEqual({
+        config: { component_name: 'AddonCatalog', heading: 'Per-page heading' },
+        source_css: '',
+      });
+
+      await (wrapper.vm as any).save();
+      await flushPromises();
+
+      expect(api.put).toHaveBeenCalledWith('/admin/cms/posts/cfg-id/widgets', [
+        {
+          widget_id: 'wid-vue', area_name: 'cta', sort_order: 0,
+          required_access_level_ids: [],
+          config_override: {
+            config: { component_name: 'AddonCatalog', heading: 'Per-page heading' },
+            source_css: '',
+          },
+        },
+      ]);
+    });
+
+    it('writes an html override into config_override.content_html + source_css', async () => {
+      (api.post as any).mockResolvedValue({ id: 'html-id', type: 'page', slug: 'multi', title: 'Multi' });
+      (api.put as any).mockResolvedValue({});
+      const { wrapper } = await mountEditor();
+      await wrapper.find('[data-testid="post-title"]').setValue('Multi');
+      await wrapper.find('[data-testid="post-slug"]').setValue('multi');
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('wid-1');
+      await flushPromises();
+
+      const block = wrapper.find('[data-testid="page-widget-config-cta"]');
+      // The HTML editor seeds from the widget's decoded content.
+      const htmlEditor = block.find('[data-testid="widget-config-html"]');
+      expect((htmlEditor.element as HTMLTextAreaElement).value).toBe('<p>Promo default</p>');
+
+      await htmlEditor.setValue('<p>Per-page HTML</p>');
+      await block.find('[data-testid="widget-config-css"]').setValue('.cta { color: blue; }');
+      await flushPromises();
+
+      const assignment = (wrapper.vm as any).form.page_widgets.find(
+        (w: { area_name: string }) => w.area_name === 'cta',
+      );
+      expect(assignment.config_override).toEqual({
+        content_html: '<p>Per-page HTML</p>',
+        source_css: '.cta { color: blue; }',
+      });
+
+      await (wrapper.vm as any).save();
+      await flushPromises();
+
+      expect(api.put).toHaveBeenCalledWith('/admin/cms/posts/html-id/widgets', [
+        {
+          widget_id: 'wid-1', area_name: 'cta', sort_order: 0,
+          required_access_level_ids: [],
+          config_override: {
+            content_html: '<p>Per-page HTML</p>',
+            source_css: '.cta { color: blue; }',
+          },
+        },
+      ]);
+    });
+
+    it('writes a menu override into config_override.menu_items + source_css', async () => {
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('wid-menu');
+      await flushPromises();
+
+      const block = wrapper.find('[data-testid="page-widget-config-cta"]');
+      await block.find('[data-testid="menu-add-item"]').trigger('click');
+      await flushPromises();
+
+      const assignment = (wrapper.vm as any).form.page_widgets.find(
+        (w: { area_name: string }) => w.area_name === 'cta',
+      );
+      // Seeds from the widget's own items, then appends the added one.
+      expect(assignment.config_override.menu_items).toEqual([
+        { id: 'mi-1', parent_id: null, label: 'Home', url: '/', page_slug: null },
+        { id: 'mi-new', parent_id: null, label: 'Added', url: '/added', page_slug: null },
+      ]);
+      expect(assignment.config_override.source_css).toBe('.cms-menu{}');
+    });
+
+    it('clears the override when the area is switched back to layout default', async () => {
+      const { wrapper } = await mountEditor();
+      (wrapper.vm as any).form.layout_id = 'lay-multi';
+      await flushPromises();
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('wid-vue');
+      await flushPromises();
+      await wrapper.find('[data-testid="cfg-heading"]').setValue('X');
+      await flushPromises();
+
+      await wrapper.find('[data-testid="page-widget-select-cta"]').setValue('');
+      await flushPromises();
+      // Row removed entirely → no override survives.
+      expect(
+        (wrapper.vm as any).form.page_widgets.find((w: { area_name: string }) => w.area_name === 'cta'),
+      ).toBeUndefined();
     });
   });
 });

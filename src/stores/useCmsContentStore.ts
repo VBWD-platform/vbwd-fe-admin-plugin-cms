@@ -10,6 +10,7 @@
  */
 import { defineStore } from 'pinia';
 import { api } from '@/api';
+import type { CmsMenuItemData } from './useCmsAdminStore';
 
 /** A field declared by a post-type's `type_data` schema. */
 export interface PostTypeField {
@@ -96,6 +97,7 @@ export interface CmsPost {
     area_name: string;
     sort_order: number;
     required_access_level_ids?: string[];
+    config_override?: CmsPageWidgetOverride | null;
     widget?: Record<string, unknown>;
   }>;
   updated_at?: string;
@@ -126,19 +128,42 @@ export interface CmsLayoutSummary {
   areas?: CmsAreaSummary[];
 }
 
-/** A widget assignable to a layout/page area (subset for the widget picker). */
+/** A widget assignable to a layout/page area (subset for the widget picker).
+ *  `widget_type` / `config` / `content_json` / `source_css` / `menu_items` are
+ *  surfaced so the PostEditor can resolve a per-page config editor for the
+ *  widget AND seed that editor from the widget's own current values.
+ *  (`menu_items` is only present in the single-widget GET, not the list — the
+ *  per-page menu editor seeds empty when absent, then writes the override.) */
 export interface CmsWidgetSummary {
   id: string;
   slug: string;
   name: string;
+  widget_type?: string;
+  config?: Record<string, unknown> | null;
+  content_json?: Record<string, unknown> | null;
+  source_css?: string | null;
+  menu_items?: CmsMenuItemData[];
 }
 
-/** A per-post widget override for a layout area (mirrors the layout assignment). */
+/** Structured per-page widget override. Only the keys relevant to the widget
+ *  type are written; absent/null `config_override` → use the widget's own
+ *  values unchanged. Mirrors the fe-user `CmsPageWidgetOverride` shape. */
+export interface CmsPageWidgetOverride {
+  config?: Record<string, unknown>;
+  content_html?: string;
+  source_css?: string;
+  menu_items?: CmsMenuItemData[];
+}
+
+/** A per-post widget override for a layout area (mirrors the layout assignment).
+ *  `config_override` (optional) is the structured per-page override applied over
+ *  the widget's own values at render time, for this page only. */
 export interface PostWidgetAssignment {
   widget_id: string;
   area_name: string;
   sort_order: number;
   required_access_level_ids: string[];
+  config_override?: CmsPageWidgetOverride | null;
 }
 
 /** A renderable style (subset surfaced by the style list endpoint). */

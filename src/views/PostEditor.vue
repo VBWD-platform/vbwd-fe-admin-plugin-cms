@@ -269,31 +269,55 @@
           <p class="page-widgets-hint">
             {{ $t('cms.pageWidgetsHint', 'Pick a widget per area to override the layout default for this page only.') }}
           </p>
-          <div
+          <template
             v-for="area in widgetAreas"
             :key="area.name"
-            class="page-widget-row"
-            :data-testid="`page-widget-row-${area.name}`"
           >
-            <span class="page-widget-row__area">{{ area.label || area.name }}</span>
-            <select
-              class="field-input"
-              :data-testid="`page-widget-select-${area.name}`"
-              :value="pageWidgetIdFor(area.name)"
-              @change="setPageWidget(area.name, ($event.target as HTMLSelectElement).value)"
+            <div
+              class="page-widget-row"
+              :data-testid="`page-widget-row-${area.name}`"
             >
-              <option value="">
-                — {{ $t('cms.layoutDefault', 'Layout default') }} —
-              </option>
-              <option
-                v-for="widget in store.widgets?.items ?? []"
-                :key="widget.id"
-                :value="widget.id"
+              <span class="page-widget-row__area">{{ area.label || area.name }}</span>
+              <select
+                class="field-input"
+                :data-testid="`page-widget-select-${area.name}`"
+                :value="pageWidgetIdFor(area.name)"
+                @change="setPageWidget(area.name, ($event.target as HTMLSelectElement).value)"
               >
-                {{ widget.name }}
-              </option>
-            </select>
-          </div>
+                <option value="">
+                  — {{ $t('cms.layoutDefault', 'Layout default') }} —
+                </option>
+                <option
+                  v-for="widget in store.widgets?.items ?? []"
+                  :key="widget.id"
+                  :value="widget.id"
+                >
+                  {{ widget.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Per-page config override: a SIBLING after its area's row (not
+                 nested inside it), so it spans the panel width below the picker.
+                 Shown for ANY selected widget; the body matches the global Widget
+                 Editor per widget type + a per-page CSS editor (descriptor-less
+                 vue widgets still get the CSS editor so the block is never empty). -->
+            <details
+              v-if="selectedWidgetFor(area.name)"
+              class="page-widget-config"
+              :data-testid="`page-widget-config-${area.name}`"
+            >
+              <summary class="page-widget-config__title">
+                {{ $t('cms.configureForThisPage', 'Configure for this page') }}
+              </summary>
+              <CmsWidgetConfigFields
+                :widget-type="selectedWidgetTypeFor(area.name)"
+                :component-name="selectedComponentNameFor(area.name)"
+                :model-value="pageWidgetConfigModelFor(area.name)"
+                @update:model-value="setPageWidgetConfig(area.name, $event)"
+              />
+            </details>
+          </template>
         </details>
 
         <!-- SEO panel -->
@@ -643,7 +667,9 @@
               </option>
             </select>
           </div>
-          <!-- Category picker — selected shown as removable chips above -->
+          <!-- Category picker — quicksearch typeahead over existing cms_term
+               categories; selected shown as removable chips above. Categories
+               are managed in Taxonomy, so there's no inline create here. -->
           <div class="field-group">
             <label class="field-label">{{ $t('cms.categories') }}</label>
             <div
@@ -666,32 +692,25 @@
                 >×</button>
               </span>
             </div>
-            <select
-              :value="''"
-              class="field-input"
+            <SearchableTermSelect
               data-testid="term-picker-category"
-              @change="addCategory(($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">
-                + {{ $t('cms.addCategory', 'Add category…') }}
-              </option>
-              <option
-                v-for="cat in unselectedCategories"
-                :key="cat.id"
-                :value="cat.id"
-              >
-                {{ cat.name }}{{ cat.seo_excluded ? ' (noindex)' : '' }}
-              </option>
-            </select>
+              :terms="unselectedCategories"
+              :placeholder="$t('cms.addCategory', 'Add category…')"
+              @select="addCategory($event.id)"
+            />
           </div>
 
-          <!-- Tag picker — selected shown as a removable cloud above -->
+          <!-- Tag picker — cms_term taxonomy (S77 reversal). Mirrors the
+               category picker but with inline create: typing offers a "create"
+               option that adds a new cms_term('tag'); selected tags show as
+               removable chips above. Tags persist as cms_term links via
+               assignTerms, exactly like categories. -->
           <div class="field-group">
-            <label class="field-label">{{ $t('cms.tags') }}</label>
+            <label class="field-label">{{ $t('cms.tags', 'Tags') }}</label>
             <div
               v-if="selectedTags.length"
               class="term-chips"
-              data-testid="tags-cloud"
+              data-testid="selected-tags"
             >
               <span
                 v-for="tag in selectedTags"
@@ -708,36 +727,23 @@
                 >×</button>
               </span>
             </div>
-            <select
-              :value="''"
-              class="field-input"
+            <SearchableTermSelect
               data-testid="term-picker-tag"
-              @change="addTag(($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">
-                + {{ $t('cms.addTag', 'Add tag…') }}
-              </option>
-              <option
-                v-for="tag in unselectedTags"
-                :key="tag.id"
-                :value="tag.id"
-              >
-                {{ tag.name }}
-              </option>
-            </select>
+              :terms="unselectedTags"
+              :allow-create="true"
+              :placeholder="$t('cms.addTag', 'Add tag…')"
+              @select="addTag($event.id)"
+              @create="createTag($event)"
+            />
           </div>
 
-          <!-- Tags + Custom fields (S77, generic core editors) — added
-               alongside the legacy cms_term pickers above, not replacing them. -->
+          <!-- Custom fields — the generic core custom-fields editor (separate
+               from CMS tags). Needs a saved entity id, so edit mode only. -->
           <div
             v-if="!isNew && id"
             class="field-group"
-            data-testid="post-tags-custom-fields"
+            data-testid="post-custom-fields"
           >
-            <TagPicker
-              :entity-type="coreEntityType"
-              :entity-id="id"
-            />
             <CustomFieldsEditor
               ref="customFieldsEditorRef"
               :entity-type="coreEntityType"
@@ -767,13 +773,23 @@ import {
   type CmsPost,
   type PostTypeField,
   type CmsAreaSummary,
+  type CmsWidgetSummary,
   type PostWidgetAssignment,
+  type CmsPageWidgetOverride,
 } from '../stores/useCmsContentStore';
+import { getWidgetEditor } from '../widgets/widgetEditorRegistry';
+// Register the built-in vue-component editor descriptors so the per-page widget
+// config collapsible resolves them here too — not only after the Widget Editor
+// view has been visited (which is the only other importer of this module).
+import '../widgets/index';
 import { useAuthStore } from '@/stores/auth';
 import CmsImagePicker from '../components/CmsImagePicker.vue';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
+import CmsWidgetConfigFields, {
+  type WidgetConfigModel,
+} from '../components/CmsWidgetConfigFields.vue';
 import TipTapEditor from '../components/TipTapEditor.vue';
-import TagPicker from '@/components/TagPicker.vue';
+import SearchableTermSelect from '../components/SearchableTermSelect.vue';
 import CustomFieldsEditor from '@/components/CustomFieldsEditor.vue';
 import { buildPostUrl, feUserBaseUrl as resolveFeUserBaseUrl } from '../utils/postUrl';
 import {
@@ -1029,12 +1045,6 @@ const selectedCategories = computed(() =>
 const unselectedCategories = computed(() =>
   categoryTerms.value.filter((cat) => !selectedCategoryIds.value.includes(cat.id)),
 );
-const selectedTags = computed(() =>
-  tagTerms.value.filter((tag) => selectedTagIds.value.includes(tag.id)),
-);
-const unselectedTags = computed(() =>
-  tagTerms.value.filter((tag) => !selectedTagIds.value.includes(tag.id)),
-);
 
 function addCategory(id: string) {
   if (id && !selectedCategoryIds.value.includes(id)) selectedCategoryIds.value.push(id);
@@ -1042,11 +1052,30 @@ function addCategory(id: string) {
 function removeCategory(id: string) {
   selectedCategoryIds.value = selectedCategoryIds.value.filter((c) => c !== id);
 }
+
+// Tag selection — mirrors categories, but the picker allows inline create.
+const selectedTags = computed(() =>
+  tagTerms.value.filter((tag) => selectedTagIds.value.includes(tag.id)),
+);
+const unselectedTags = computed(() =>
+  tagTerms.value.filter((tag) => !selectedTagIds.value.includes(tag.id)),
+);
+
 function addTag(id: string) {
   if (id && !selectedTagIds.value.includes(id)) selectedTagIds.value.push(id);
 }
 function removeTag(id: string) {
-  selectedTagIds.value = selectedTagIds.value.filter((t) => t !== id);
+  selectedTagIds.value = selectedTagIds.value.filter((tagId) => tagId !== id);
+}
+
+// Inline-create a new cms_term('tag') then select it. saveTerm reloads the tag
+// terms (store.terms), so refresh the local list before adding the chip.
+async function createTag(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const created = await store.saveTerm({ term_type: 'tag', name: trimmed });
+  tagTerms.value = [...store.terms];
+  addTag(created.id);
 }
 
 // ── Post-type awareness ─────────────────────────────────────────────────
@@ -1077,10 +1106,13 @@ const primaryContentLabel = computed(() => {
   return primary ? (primary.label || primary.name) : '';
 });
 
-// Only dedicated `page-widget` areas take a per-page widget override (falling
-// back to the layout's own widget when left unset). Chrome areas
-// (header/footer/vue) are layout-level and never overridden per page.
-const widgetAreas = computed(() => layoutAreas.value.filter((area) => area.type === 'page-widget'));
+// Only dedicated `page-widget` areas take a per-page widget override; the panel
+// shows nothing (and is hidden) unless the layout declares such an area. Other
+// area types (header/footer/content/vue/vue-component) are layout-level and are
+// not overridden per page.
+const widgetAreas = computed(() =>
+  layoutAreas.value.filter((area) => area.type === 'page-widget'),
+);
 
 // Keep a content-block entry present for each additional content area so the
 // editors always have a model to bind to.
@@ -1113,6 +1145,101 @@ function setPageWidget(areaName: string, widgetId: string) {
   else form.value.page_widgets.push(assignment);
 }
 
+// ── Per-page widget config override (collapsible in the Page widgets panel) ──
+// The selected widget summary (carries its widget_type + config for descriptor
+// resolution). Undefined when the area is on layout default.
+function selectedWidgetFor(areaName: string): CmsWidgetSummary | undefined {
+  const widgetId = pageWidgetIdFor(areaName);
+  if (!widgetId) return undefined;
+  return (store.widgets?.items ?? []).find((widget) => widget.id === widgetId);
+}
+
+// The selected widget's type — drives which per-type editors render. Falls back
+// to an empty string (the config-fields component then shows the CSS editor).
+function selectedWidgetTypeFor(areaName: string): string {
+  return selectedWidgetFor(areaName)?.widget_type ?? '';
+}
+
+// The vue-component identifier of the selected widget (for descriptor resolution).
+function selectedComponentNameFor(areaName: string): string | undefined {
+  const widget = selectedWidgetFor(areaName);
+  if (!widget || widget.widget_type !== 'vue-component') return undefined;
+  return (widget.config as { component_name?: string } | null | undefined)?.component_name;
+}
+
+// Decode a widget's base64 content_json.content the same way the renderer does
+// (it pairs with encodeWidgetHtml on save / in the fe-user renderer).
+function decodeWidgetHtml(contentJson: Record<string, unknown> | null | undefined): string {
+  const encoded = (contentJson as { content?: string } | null | undefined)?.content;
+  if (!encoded) return '';
+  try {
+    return decodeURIComponent(escape(atob(encoded)));
+  } catch {
+    return encoded;
+  }
+}
+
+// The structured override model bound to CmsWidgetConfigFields for this area.
+// Seeds from the saved override when present, else from the selected widget's
+// own values so the editor opens with meaningful content per widget type.
+function pageWidgetConfigModelFor(areaName: string): WidgetConfigModel {
+  const assignment = form.value.page_widgets.find((entry) => entry.area_name === areaName);
+  const override = assignment?.config_override;
+  const widget = selectedWidgetFor(areaName);
+  const widgetType = widget?.widget_type ?? '';
+
+  if (widgetType === 'html') {
+    return {
+      content_html: override?.content_html ?? decodeWidgetHtml(widget?.content_json),
+      source_css: override?.source_css ?? widget?.source_css ?? '',
+    };
+  }
+  if (widgetType === 'menu') {
+    return {
+      menu_items: override?.menu_items ?? widget?.menu_items ?? [],
+      source_css: override?.source_css ?? widget?.source_css ?? '',
+    };
+  }
+  if (widgetType === 'vue-component') {
+    const componentName = selectedComponentNameFor(areaName);
+    const seededConfig =
+      (widget?.config as Record<string, unknown> | null | undefined) ??
+      (componentName ? getWidgetEditor(componentName)?.defaultConfig() : undefined) ??
+      {};
+    return {
+      config: override?.config ?? { ...seededConfig },
+      source_css: override?.source_css ?? widget?.source_css ?? '',
+    };
+  }
+  // Unknown type: only CSS applies.
+  return { source_css: override?.source_css ?? widget?.source_css ?? '' };
+}
+
+// Persist an edited per-page override onto the area's assignment, keeping only
+// the keys relevant to the widget type (matches the canonical override shape).
+function setPageWidgetConfig(areaName: string, model: WidgetConfigModel) {
+  const existing = form.value.page_widgets.findIndex((entry) => entry.area_name === areaName);
+  if (existing < 0) return;
+  const widgetType = selectedWidgetTypeFor(areaName);
+  const override: CmsPageWidgetOverride = {};
+  if (widgetType === 'html') {
+    if (typeof model.content_html === 'string') override.content_html = model.content_html;
+    if (typeof model.source_css === 'string') override.source_css = model.source_css;
+  } else if (widgetType === 'menu') {
+    if (Array.isArray(model.menu_items)) override.menu_items = model.menu_items;
+    if (typeof model.source_css === 'string') override.source_css = model.source_css;
+  } else if (widgetType === 'vue-component') {
+    if (model.config) override.config = model.config;
+    if (typeof model.source_css === 'string') override.source_css = model.source_css;
+  } else if (typeof model.source_css === 'string') {
+    override.source_css = model.source_css;
+  }
+  form.value.page_widgets[existing] = {
+    ...form.value.page_widgets[existing],
+    config_override: override,
+  };
+}
+
 // Map the admin GET post `content_blocks` dict (keyed by area) into the form's
 // per-area {content_html, source_css} model.
 function loadContentBlocks(
@@ -1137,6 +1264,7 @@ function loadPageWidgets(
     area_name: assignment.area_name,
     sort_order: assignment.sort_order ?? 0,
     required_access_level_ids: assignment.required_access_level_ids ?? [],
+    config_override: assignment.config_override ?? null,
   }));
 }
 

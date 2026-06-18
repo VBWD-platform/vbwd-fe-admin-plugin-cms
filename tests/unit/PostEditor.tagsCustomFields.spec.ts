@@ -1,10 +1,12 @@
 /**
- * S77 — the CMS PostEditor mounts the generic Tags + Custom-fields editors.
+ * S77 reversal — the CMS PostEditor keeps the generic Custom-fields editor but
+ * NO LONGER mounts the generic vbwd_tag TagPicker.
  *
- * The editors are added ALONGSIDE the existing legacy `cms_term` tag/category
- * pickers (untouched — the D7 tag migration is a later slice). The host passes
- * `entity_type` keyed by the post's kind: a page edits `cms_page`, any other
- * type edits `cms_post`. Only in edit mode (an id is needed to address values).
+ * Tags are a cms_term taxonomy again (edited via the SearchableTermSelect tag
+ * picker, covered in PostEditor.spec.ts). Custom fields stay a separate, legit
+ * concern: the host passes `entity_type` keyed by the post's kind (a page edits
+ * `cms_page`, any other type `cms_post`), only in edit mode (an id is needed to
+ * address values).
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
@@ -43,8 +45,8 @@ function primeApi(post: Record<string, unknown> | null) {
     if (url === '/admin/cms/terms') return Promise.resolve([]);
     if (url === '/admin/cms/posts') return Promise.resolve(EMPTY_LIST);
     if (post && url === `/admin/cms/posts/${post.id}`) return Promise.resolve(post);
-    // Generic value endpoints used by the editors.
-    if (url.includes('/tags') || url.includes('/custom-fields') || url.includes('/field-defs')) {
+    // Generic value endpoints used by the custom-fields editor.
+    if (url.includes('/custom-fields') || url.includes('/field-defs')) {
       return Promise.resolve({});
     }
     return Promise.resolve({});
@@ -85,7 +87,7 @@ const baseEditPost = {
   parent_id: null, language: 'en', translation_group_id: null, sort_order: 0, robots: 'index,follow',
 };
 
-describe('PostEditor — S77 tags + custom fields editors', () => {
+describe('PostEditor — custom fields editor (S77 tag reversal)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     configureAuthStore({
@@ -96,27 +98,27 @@ describe('PostEditor — S77 tags + custom fields editors', () => {
     vi.clearAllMocks();
   });
 
-  it('mounts the editors with entity_type=cms_page when editing a page', async () => {
+  it('mounts the custom-fields editor with entity_type=cms_page when editing a page', async () => {
     const wrapper = await mountEdit({ ...baseEditPost, id: 'page-1', type: 'page' });
 
-    expect(wrapper.find('[data-testid="post-tags-custom-fields"]').exists()).toBe(true);
-    const tagPicker = wrapper.findComponent(TagPicker);
-    expect(tagPicker.exists()).toBe(true);
-    expect(tagPicker.props('entityType')).toBe('cms_page');
-    expect(tagPicker.props('entityId')).toBe('page-1');
+    expect(wrapper.find('[data-testid="post-custom-fields"]').exists()).toBe(true);
     expect(wrapper.findComponent(CustomFieldsEditor).props('entityType')).toBe('cms_page');
+    expect(wrapper.findComponent(CustomFieldsEditor).props('entityId')).toBe('page-1');
   });
 
-  it('mounts the editors with entity_type=cms_post when editing a post', async () => {
+  it('mounts the custom-fields editor with entity_type=cms_post when editing a post', async () => {
     const wrapper = await mountEdit({ ...baseEditPost, id: 'post-1', type: 'post' });
 
-    const tagPicker = wrapper.findComponent(TagPicker);
-    expect(tagPicker.props('entityType')).toBe('cms_post');
-    expect(tagPicker.props('entityId')).toBe('post-1');
     expect(wrapper.findComponent(CustomFieldsEditor).props('entityType')).toBe('cms_post');
+    expect(wrapper.findComponent(CustomFieldsEditor).props('entityId')).toBe('post-1');
   });
 
-  it('does not show the block in create (new) mode', async () => {
+  it('does not mount the generic vbwd_tag TagPicker in the CMS editor', async () => {
+    const wrapper = await mountEdit({ ...baseEditPost, id: 'post-1', type: 'post' });
+    expect(wrapper.findComponent(TagPicker).exists()).toBe(false);
+  });
+
+  it('does not show the custom-fields block in create (new) mode', async () => {
     primeApi(null);
     const router = createRouter({
       history: createMemoryHistory(),
@@ -132,6 +134,6 @@ describe('PostEditor — S77 tags + custom fields editors', () => {
       global: { plugins: [i18n, router], stubs: { CodeMirrorEditor: CodeMirrorStub, TipTapEditor: TipTapStub, CmsImagePicker: true } },
     });
     await flushPromises();
-    expect(wrapper.find('[data-testid="post-tags-custom-fields"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="post-custom-fields"]').exists()).toBe(false);
   });
 });
