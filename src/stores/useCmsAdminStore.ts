@@ -1,35 +1,6 @@
 import { defineStore } from 'pinia';
 import { api } from '@/api';
 
-export interface CmsCategory {
-  id: string;
-  slug: string;
-  name: string;
-  parent_id: string | null;
-  sort_order: number;
-}
-
-export interface CmsPage {
-  id: string;
-  slug: string;
-  name: string;
-  language: string;
-  content_json: Record<string, unknown>;
-  category_id: string | null;
-  is_published: boolean;
-  sort_order: number;
-  meta_title: string | null;
-  meta_description: string | null;
-  meta_keywords: string | null;
-  og_title: string | null;
-  og_description: string | null;
-  og_image_url: string | null;
-  canonical_url: string | null;
-  robots: string;
-  schema_json: unknown;
-  updated_at: string;
-}
-
 export interface CmsImage {
   id: string;
   slug: string;
@@ -131,9 +102,6 @@ export interface CmsStyle {
 }
 
 interface CmsAdminState {
-  categories: CmsCategory[];
-  pages: PaginatedResult<CmsPage> | null;
-  currentPage: CmsPage | null;
   images: PaginatedResult<CmsImage> | null;
   layouts: PaginatedResult<CmsLayout> | null;
   currentLayout: CmsLayout | null;
@@ -143,7 +111,6 @@ interface CmsAdminState {
   currentStyle: CmsStyle | null;
   loading: boolean;
   error: string | null;
-  selectedPageIds: Set<string>;
   selectedImageIds: Set<string>;
   selectedLayoutIds: Set<string>;
   selectedWidgetIds: Set<string>;
@@ -152,9 +119,6 @@ interface CmsAdminState {
 
 export const useCmsAdminStore = defineStore('cms-admin', {
   state: (): CmsAdminState => ({
-    categories: [],
-    pages: null,
-    currentPage: null,
     images: null,
     layouts: null,
     currentLayout: null,
@@ -164,7 +128,6 @@ export const useCmsAdminStore = defineStore('cms-admin', {
     currentStyle: null,
     loading: false,
     error: null,
-    selectedPageIds: new Set(),
     selectedImageIds: new Set(),
     selectedLayoutIds: new Set(),
     selectedWidgetIds: new Set(),
@@ -172,83 +135,6 @@ export const useCmsAdminStore = defineStore('cms-admin', {
   }),
 
   actions: {
-    // ── Categories ────────────────────────────────────────────────────────────
-
-    async fetchCategories() {
-      const res = await api.get<any>('/admin/cms/categories');
-      this.categories = Array.isArray(res) ? res : (res.items ?? []);
-    },
-
-    async saveCategory(data: Partial<CmsCategory>) {
-      if (data.id) {
-        await api.put<any>(`/admin/cms/categories/${data.id}`, data);
-      } else {
-        await api.post<any>('/admin/cms/categories', data);
-      }
-      await this.fetchCategories();
-    },
-
-    async deleteCategory(id: string) {
-      await api.delete<any>(`/admin/cms/categories/${id}`);
-      await this.fetchCategories();
-    },
-
-    // ── Pages ────────────────────────────────────────────────────────────────
-
-    async fetchPages(params: Record<string, unknown> = {}) {
-      this.loading = true;
-      this.error = null;
-      try {
-        const res = await api.get<any>('/admin/cms/pages', { params });
-        this.pages = res;
-      } catch (e: any) {
-        this.error = e?.message ?? 'Failed to load pages';
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    async fetchPage(id: string) {
-      this.loading = true;
-      this.error = null;
-      try {
-        const res = await api.get<any>(`/admin/cms/pages/${id}`);
-        this.currentPage = res;
-      } catch (e: any) {
-        this.error = e?.message ?? 'Failed to load page';
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    async savePage(data: Partial<CmsPage>): Promise<CmsPage> {
-      this.loading = true;
-      this.error = null;
-      try {
-        const res = data.id
-          ? await api.put<any>(`/admin/cms/pages/${data.id}`, data)
-          : await api.post<any>('/admin/cms/pages', data);
-        this.currentPage = res;
-        return res;
-      } catch (e: any) {
-        this.error = e?.message ?? 'Failed to save page';
-        throw e;
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    async deletePage(id: string) {
-      await api.delete<any>(`/admin/cms/pages/${id}`);
-      await this.fetchPages();
-    },
-
-    async bulkAction(ids: string[], action: string, params: Record<string, unknown> = {}) {
-      await api.post<any>('/admin/cms/pages/bulk', { ids, action, params });
-      this.selectedPageIds.clear();
-      await this.fetchPages();
-    },
-
     // ── Images ────────────────────────────────────────────────────────────────
 
     async fetchImages(params: Record<string, unknown> = {}) {

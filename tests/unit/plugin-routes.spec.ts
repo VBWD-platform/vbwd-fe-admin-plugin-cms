@@ -48,6 +48,59 @@ describe('cms-admin plugin manifest (index.ts)', () => {
     expect(indexSource).toContain("name: 'cms-admin-pages'");
     expect(indexSource).toContain('CmsPageList.vue');
   });
+
+  it('no longer references the retired legacy page editor (CmsPageEditor)', () => {
+    expect(indexSource).not.toContain('CmsPageEditor');
+  });
+});
+
+describe('cms-admin legacy page/category store methods are retired', () => {
+  const storeSource = readFileSync(
+    resolve(process.cwd(), 'plugins/cms-admin/src/stores/useCmsAdminStore.ts'),
+    'utf-8',
+  );
+
+  it('drops the legacy cms_page CRUD methods (unified content store owns posts/pages now)', () => {
+    for (const removed of [
+      'fetchPages',
+      'fetchPage',
+      'savePage',
+      'deletePage',
+      "'/admin/cms/pages'",
+      '/admin/cms/pages/',
+    ]) {
+      expect(storeSource).not.toContain(removed);
+    }
+  });
+
+  it('drops the legacy cms_category CRUD methods (taxonomy / cms_term owns terms now)', () => {
+    for (const removed of [
+      'fetchCategories',
+      'saveCategory',
+      'deleteCategory',
+      "'/admin/cms/categories'",
+      '/admin/cms/categories/',
+    ]) {
+      expect(storeSource).not.toContain(removed);
+    }
+  });
+
+  it('keeps the layout / style / widget / image / seo store methods intact', () => {
+    for (const kept of [
+      'fetchLayouts',
+      'setWidgetAssignments',
+      'fetchStyles',
+      'setDefaultStyle',
+      'fetchWidgets',
+      'replaceMenuTree',
+      'fetchImages',
+      'uploadImage',
+      'fetchSeoSettings',
+      'fetchTerms',
+    ]) {
+      expect(storeSource).toContain(kept);
+    }
+  });
 });
 
 describe('cms-admin shared content list (single source for posts + pages)', () => {
