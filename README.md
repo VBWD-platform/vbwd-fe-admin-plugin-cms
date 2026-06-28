@@ -8,6 +8,21 @@ Provides admin UI for the CMS plugin. Pages and posts are authored through the
 unified content engine (`cms_post`) and taxonomy (`cms_term`); the plugin also
 manages the image gallery (upload/resize) and widget/layout/style configuration.
 
+### Widget editors
+
+Each `vue-component` widget registers a descriptor in `src/widgets/index.ts`
+(`registerWidgetEditor({ componentName, defaultConfig, generalTabComponent,
+cssHint, buildPreview })`); `CmsWidgetEditor.vue` stays widget-agnostic and gives
+every registered widget a **General**, **CSS**, and **Preview** tab automatically.
+
+- **Cookie Consent (GDPR/DSGVO)** — `CookieConsentEditorTab.vue` edits the
+  fe-user `CookieConsent` overlay: privacy-policy URL, display mode (modal/banner),
+  consent version (bump to re-prompt), optional categories (`necessary` is always
+  on), and the persistent "Cookie settings" toggle. `buildPreview` renders a
+  static banner with the three equal-prominence actions. The admin drops the
+  seeded **Cookie Consent** widget into any layout area (it renders as a body
+  overlay, so the area is irrelevant).
+
 ---
 
 ## Related

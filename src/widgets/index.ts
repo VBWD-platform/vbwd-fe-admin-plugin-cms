@@ -15,6 +15,7 @@ import CategoryEditorTab from './CategoryEditorTab.vue';
 import AddonCatalogEditorTab from './AddonCatalogEditorTab.vue';
 import TariffPlanCollectionEditorTab from './TariffPlanCollectionEditorTab.vue';
 import TokenBundleCollectionEditorTab from './TokenBundleCollectionEditorTab.vue';
+import CookieConsentEditorTab from './CookieConsentEditorTab.vue';
 
 // ── CmsBreadcrumb ─────────────────────────────────────────────────────────────
 
@@ -353,6 +354,44 @@ registerWidgetEditor({
   ${card('1,000', '5 EUR')}
   ${card('5,000', '20 EUR')}
   ${card('20,000', '70 EUR')}
+</div>`,
+    };
+  },
+});
+
+// ── CookieConsent (S87) ───────────────────────────────────────────────────────
+// fe-user component CookieConsent.vue — a GDPR/DSGVO consent overlay (Teleport
+// to body) driving Google Consent Mode v2. Dropped into any layout area; the
+// area is irrelevant since the widget renders as a fixed overlay.
+
+registerWidgetEditor({
+  componentName: 'CookieConsent',
+
+  defaultConfig: () => ({
+    component_name: 'CookieConsent',
+    consent_version: 1,
+    privacy_policy_url: '/privacy',
+    mode: 'modal',
+    categories: ['necessary', 'statistics', 'marketing', 'preferences'],
+    show_settings_button: true,
+    debug_mode: false,
+  }),
+
+  generalTabComponent: CookieConsentEditorTab,
+
+  cssHint: 'Injected via the widget config. Target <code>.cookie-consent</code>, <code>.cookie-consent__btn</code>, <code>.cookie-consent__settings</code>.',
+
+  buildPreview(config) {
+    const policyUrl = (config.privacy_policy_url as string) || '/privacy';
+    return {
+      html: `<div style="max-width:420px;margin:0 auto;padding:1.5rem;border-radius:12px;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.18)">
+  <h2 style="margin:0 0 .5rem;font-size:1.15rem;font-weight:700">We value your privacy</h2>
+  <p style="margin:0 0 1rem;font-size:.9rem;color:#555">We use cookies to run the site and, with your consent, to measure it. <a href="${policyUrl}" style="color:#3498db">Privacy policy</a></p>
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+    <button style="flex:1 1 auto;min-width:100px;padding:.6rem 1rem;border:1px solid #3498db;border-radius:6px;background:#3498db;color:#fff;font-weight:600">Accept all</button>
+    <button style="flex:1 1 auto;min-width:100px;padding:.6rem 1rem;border:1px solid #3498db;border-radius:6px;background:#3498db;color:#fff;font-weight:600">Reject all</button>
+    <button style="flex:1 1 auto;min-width:100px;padding:.6rem 1rem;border:1px solid #3498db;border-radius:6px;background:#3498db;color:#fff;font-weight:600">Customize</button>
+  </div>
 </div>`,
     };
   },
