@@ -27,7 +27,9 @@ describe('CookieConsent widget editor descriptor', () => {
     const config = getWidgetEditor('CookieConsent')!.defaultConfig();
     expect(config.component_name).toBe('CookieConsent');
     expect(config.consent_version).toBe(1);
-    expect(config.mode).toBe('modal');
+    expect(config.position).toBe('center');
+    expect(config.additional_text).toBe('');
+    expect(config.backdrop_opacity).toBe(0.55);
     expect(config.privacy_policy_url).toBe('/privacy');
     expect(config.show_settings_button).toBe(true);
     expect(config.categories).toContain('necessary');
@@ -55,6 +57,24 @@ describe('CookieConsent widget editor descriptor', () => {
     expect(emitted).toBeTruthy();
     const lastPayload = emitted![emitted!.length - 1][0] as Record<string, unknown>;
     expect(lastPayload.privacy_policy_url).toBe('/datenschutz');
+  });
+
+  it('emits position, additional_text and backdrop_opacity changes', async () => {
+    const descriptor = getWidgetEditor('CookieConsent')!;
+    const wrapper = mount(descriptor.generalTabComponent as Component, {
+      props: { config: descriptor.defaultConfig() },
+    });
+
+    // Each field change emits one update (based on the original config, since
+    // the parent doesn't feed the value back in this unit test), so assert per emit.
+    await wrapper.find('[data-testid="cc-position"]').setValue('bottom');
+    await wrapper.find('[data-testid="cc-additional-text"]').setValue('Regional note.');
+    await wrapper.find('[data-testid="cc-backdrop-opacity"]').setValue('0.3');
+
+    const emitted = wrapper.emitted('update:config')!;
+    expect((emitted[0][0] as Record<string, unknown>).position).toBe('bottom');
+    expect((emitted[1][0] as Record<string, unknown>).additional_text).toBe('Regional note.');
+    expect((emitted[2][0] as Record<string, unknown>).backdrop_opacity).toBe(0.3);
   });
 
   it('toggling an optional category keeps necessary and updates the list', async () => {

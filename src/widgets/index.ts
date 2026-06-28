@@ -371,7 +371,9 @@ registerWidgetEditor({
     component_name: 'CookieConsent',
     consent_version: 1,
     privacy_policy_url: '/privacy',
-    mode: 'modal',
+    position: 'center',
+    additional_text: '',
+    backdrop_opacity: 0.55,
     categories: ['necessary', 'statistics', 'marketing', 'preferences'],
     show_settings_button: true,
     debug_mode: false,
@@ -383,14 +385,28 @@ registerWidgetEditor({
 
   buildPreview(config) {
     const policyUrl = (config.privacy_policy_url as string) || '/privacy';
+    const extra = (config.additional_text as string) || '';
+    const extraHtml = extra
+      ? `<p style="margin:0 0 1rem;font-size:.85rem;color:#777">${extra}</p>`
+      : '';
+    const opacity = Number.isNaN(Number(config.backdrop_opacity))
+      ? 0.55 : Math.min(1, Math.max(0, Number(config.backdrop_opacity ?? 0.55)));
+    const bottom = config.position === 'bottom';
+    const wrapStyle = bottom
+      ? 'display:flex;align-items:flex-end;justify-content:center;min-height:260px'
+      : 'display:flex;align-items:center;justify-content:center;min-height:260px';
     return {
-      html: `<div style="max-width:420px;margin:0 auto;padding:1.5rem;border-radius:12px;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.18)">
-  <h2 style="margin:0 0 .5rem;font-size:1.15rem;font-weight:700">We value your privacy</h2>
-  <p style="margin:0 0 1rem;font-size:.9rem;color:#555">We use cookies to run the site and, with your consent, to measure it. <a href="${policyUrl}" style="color:#3498db">Privacy policy</a></p>
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-    <button style="flex:1 1 auto;min-width:100px;padding:.6rem 1rem;border:1px solid #3498db;border-radius:6px;background:#3498db;color:#fff;font-weight:600">Accept all</button>
-    <button style="flex:1 1 auto;min-width:100px;padding:.6rem 1rem;border:1px solid #3498db;border-radius:6px;background:#3498db;color:#fff;font-weight:600">Reject all</button>
-    <button style="flex:1 1 auto;min-width:100px;padding:.6rem 1rem;border:1px solid #3498db;border-radius:6px;background:#3498db;color:#fff;font-weight:600">Customize</button>
+      baseStyles: `.cc-preview-backdrop{background:rgba(0,0,0,${opacity})}`,
+      html: `<div class="cc-preview-backdrop" style="${wrapStyle};padding:1rem;border-radius:8px">
+  <div style="width:${bottom ? 'min(640px,100%)' : 'min(420px,100%)'};padding:1.5rem;border-radius:12px;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.18)">
+    <h2 style="margin:0 0 .5rem;font-size:1.15rem;font-weight:700">We value your privacy</h2>
+    <p style="margin:0 0 1rem;font-size:.9rem;color:#555">We use cookies to run the site and, with your consent, to measure it. <a href="${policyUrl}" style="color:#3498db">Privacy policy</a></p>
+    ${extraHtml}
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <button style="flex:1 1 auto;min-width:100px;padding:.6rem 1rem;border:1px solid #3498db;border-radius:6px;background:#3498db;color:#fff;font-weight:600">Accept all</button>
+      <button style="flex:1 1 auto;min-width:100px;padding:.6rem 1rem;border:1px solid #3498db;border-radius:6px;background:#3498db;color:#fff;font-weight:600">Reject all</button>
+      <button style="flex:1 1 auto;min-width:100px;padding:.6rem 1rem;border:1px solid #3498db;border-radius:6px;background:#3498db;color:#fff;font-weight:600">Customize</button>
+    </div>
   </div>
 </div>`,
     };

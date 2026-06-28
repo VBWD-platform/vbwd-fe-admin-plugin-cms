@@ -15,22 +15,56 @@
     </p>
   </div>
 
-  <!-- Mode -->
+  <!-- Position -->
   <div class="field-group">
-    <label class="field-label">Display Mode</label>
+    <label class="field-label">Position</label>
     <select
-      :value="cfg.mode"
+      :value="position"
       class="field-input"
-      data-testid="cc-mode"
-      @change="set('mode', ($event.target as HTMLSelectElement).value)"
+      data-testid="cc-position"
+      @change="set('position', ($event.target as HTMLSelectElement).value)"
     >
-      <option value="modal">
-        Modal (blocking overlay)
+      <option value="center">
+        Centred popup
       </option>
-      <option value="banner">
-        Banner (non-blocking)
+      <option value="bottom">
+        Bottom area (bar)
       </option>
     </select>
+    <p class="editor-pane__hint">
+      Where the dialog appears. The overlay still covers the page either way.
+    </p>
+  </div>
+
+  <!-- Additional text -->
+  <div class="field-group">
+    <label class="field-label">Additional Text</label>
+    <textarea
+      :value="(cfg.additional_text as string) || ''"
+      class="field-input"
+      rows="3"
+      placeholder="Optional extra text shown under the summary (e.g. a regional note)."
+      data-testid="cc-additional-text"
+      @input="set('additional_text', ($event.target as HTMLTextAreaElement).value)"
+    />
+  </div>
+
+  <!-- Backdrop blend opacity -->
+  <div class="field-group">
+    <label class="field-label">Blend the site ({{ opacityPercent }}%)</label>
+    <input
+      :value="backdropOpacity"
+      class="field-input"
+      type="range"
+      min="0"
+      max="1"
+      step="0.05"
+      data-testid="cc-backdrop-opacity"
+      @input="set('backdrop_opacity', Number(($event.target as HTMLInputElement).value))"
+    >
+    <p class="editor-pane__hint">
+      How much the page behind the dialog is dimmed. 0% = no blend, 100% = black.
+    </p>
   </div>
 
   <!-- Consent version -->
@@ -120,6 +154,19 @@ const cfg = computed(() => props.config);
 const selectedCategories = computed<string[]>(() =>
   Array.isArray(props.config.categories) ? (props.config.categories as string[]) : [],
 );
+
+// Position falls back from the legacy `mode` key ('banner' ⇒ bottom).
+const position = computed<string>(() => {
+  const explicit = props.config.position as string | undefined;
+  if (explicit === 'bottom' || explicit === 'center') return explicit;
+  return props.config.mode === 'banner' ? 'bottom' : 'center';
+});
+
+const backdropOpacity = computed<number>(() => {
+  const raw = Number(props.config.backdrop_opacity ?? 0.55);
+  return Number.isNaN(raw) ? 0.55 : Math.min(1, Math.max(0, raw));
+});
+const opacityPercent = computed(() => Math.round(backdropOpacity.value * 100));
 
 function set(key: string, value: unknown) {
   emit('update:config', { ...props.config, [key]: value });
