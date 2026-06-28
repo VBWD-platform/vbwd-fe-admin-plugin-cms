@@ -104,6 +104,27 @@
     "insertImage": "插入",
     "editImage": "编辑图片",
     "noCategories": "暂无分类。",
-    "noParent": "— 无 —"
+    "noParent": "— 无 —",
+    "allLayouts": "所有布局",
+    "allStyles": "所有样式",
+    "assignCategory": "分配类别",
+    "change": "更改",
+    "clear": "清除",
+    "create": "创建",
+    "deleteSelected": "删除所选",
+    "entries": "条目",
+    "featuredImage": "特色图片",
+    "insertGallery": "插入图库",
+    "insertSelected": "插入所选",
+    "remove": "移除",
+    "searchable": "可搜索",
+    "selectAll": "全选",
+    "selectAllEntries": "选择所有条目",
+    "selectAllOnPage": "选择本页全部",
+    "unsearchable": "不可搜索",
+    "unsetCategory": "取消类别",
+    "unsetLayout": "取消布局",
+    "updatedFrom": "更新自",
+    "updatedTo": "更新至"
   }
 }

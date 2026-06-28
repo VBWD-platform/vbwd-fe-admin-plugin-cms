@@ -104,6 +104,27 @@
     "insertImage": "Insertar",
     "editImage": "Editar imagen",
     "noCategories": "Aún no hay categorías.",
-    "noParent": "— ninguno —"
+    "noParent": "— ninguno —",
+    "allLayouts": "Todos los diseños",
+    "allStyles": "Todos los estilos",
+    "assignCategory": "Asignar categoría",
+    "change": "Cambiar",
+    "clear": "Limpiar",
+    "create": "Crear",
+    "deleteSelected": "Eliminar seleccionados",
+    "entries": "entradas",
+    "featuredImage": "Imagen destacada",
+    "insertGallery": "Insertar galería",
+    "insertSelected": "Insertar seleccionados",
+    "remove": "Quitar",
+    "searchable": "Buscable",
+    "selectAll": "Seleccionar todo",
+    "selectAllEntries": "Seleccionar todas las entradas",
+    "selectAllOnPage": "Seleccionar todo en la página",
+    "unsearchable": "No buscable",
+    "unsetCategory": "Quitar categoría",
+    "unsetLayout": "Quitar diseño",
+    "updatedFrom": "Actualizado desde",
+    "updatedTo": "Actualizado hasta"
   }
 }

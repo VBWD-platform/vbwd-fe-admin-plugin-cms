@@ -100,6 +100,27 @@
     "noParent": "— none —",
     "layout": "Layout",
     "style": "Style",
-    "selected": "selected"
+    "selected": "selected",
+    "allLayouts": "All layouts",
+    "allStyles": "All styles",
+    "assignCategory": "Assign category",
+    "change": "Change",
+    "clear": "Clear",
+    "create": "Create",
+    "deleteSelected": "Delete selected",
+    "entries": "entries",
+    "featuredImage": "Featured image",
+    "insertGallery": "Insert gallery",
+    "insertSelected": "Insert selected",
+    "remove": "Remove",
+    "searchable": "Searchable",
+    "selectAll": "Select all",
+    "selectAllEntries": "Select all entries",
+    "selectAllOnPage": "Select all on page",
+    "unsearchable": "Not searchable",
+    "unsetCategory": "Remove category",
+    "unsetLayout": "Remove layout",
+    "updatedFrom": "Updated from",
+    "updatedTo": "Updated to"
   }
 }

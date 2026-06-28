@@ -104,6 +104,27 @@
     "insertImage": "挿入",
     "editImage": "画像を編集",
     "noCategories": "カテゴリーがまだありません。",
-    "noParent": "— なし —"
+    "noParent": "— なし —",
+    "allLayouts": "すべてのレイアウト",
+    "allStyles": "すべてのスタイル",
+    "assignCategory": "カテゴリを割り当て",
+    "change": "変更",
+    "clear": "クリア",
+    "create": "作成",
+    "deleteSelected": "選択項目を削除",
+    "entries": "件",
+    "featuredImage": "アイキャッチ画像",
+    "insertGallery": "ギャラリーを挿入",
+    "insertSelected": "選択項目を挿入",
+    "remove": "削除",
+    "searchable": "検索可能",
+    "selectAll": "すべて選択",
+    "selectAllEntries": "すべての項目を選択",
+    "selectAllOnPage": "ページ内をすべて選択",
+    "unsearchable": "検索不可",
+    "unsetCategory": "カテゴリを解除",
+    "unsetLayout": "レイアウトを解除",
+    "updatedFrom": "更新日（開始）",
+    "updatedTo": "更新日（終了）"
   }
 }

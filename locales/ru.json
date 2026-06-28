@@ -104,6 +104,27 @@
     "insertImage": "Вставить",
     "editImage": "Редактировать изображение",
     "noCategories": "Категорий пока нет.",
-    "noParent": "— нет —"
+    "noParent": "— нет —",
+    "allLayouts": "Все макеты",
+    "allStyles": "Все стили",
+    "assignCategory": "Назначить категорию",
+    "change": "Изменить",
+    "clear": "Очистить",
+    "create": "Создать",
+    "deleteSelected": "Удалить выбранные",
+    "entries": "записей",
+    "featuredImage": "Изображение записи",
+    "insertGallery": "Вставить галерею",
+    "insertSelected": "Вставить выбранные",
+    "remove": "Удалить",
+    "searchable": "Доступно для поиска",
+    "selectAll": "Выбрать все",
+    "selectAllEntries": "Выбрать все записи",
+    "selectAllOnPage": "Выбрать все на странице",
+    "unsearchable": "Недоступно для поиска",
+    "unsetCategory": "Убрать категорию",
+    "unsetLayout": "Убрать макет",
+    "updatedFrom": "Обновлено с",
+    "updatedTo": "Обновлено по"
   }
 }

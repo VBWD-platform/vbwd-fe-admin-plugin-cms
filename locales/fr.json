@@ -104,6 +104,27 @@
     "insertImage": "Insérer",
     "editImage": "Modifier l'image",
     "noCategories": "Pas encore de catégories.",
-    "noParent": "— aucun —"
+    "noParent": "— aucun —",
+    "allLayouts": "Toutes les mises en page",
+    "allStyles": "Tous les styles",
+    "assignCategory": "Attribuer une catégorie",
+    "change": "Modifier",
+    "clear": "Effacer",
+    "create": "Créer",
+    "deleteSelected": "Supprimer la sélection",
+    "entries": "entrées",
+    "featuredImage": "Image à la une",
+    "insertGallery": "Insérer une galerie",
+    "insertSelected": "Insérer la sélection",
+    "remove": "Retirer",
+    "searchable": "Indexable",
+    "selectAll": "Tout sélectionner",
+    "selectAllEntries": "Sélectionner toutes les entrées",
+    "selectAllOnPage": "Sélectionner tout sur la page",
+    "unsearchable": "Non indexable",
+    "unsetCategory": "Retirer la catégorie",
+    "unsetLayout": "Retirer la mise en page",
+    "updatedFrom": "Mis à jour à partir du",
+    "updatedTo": "Mis à jour jusqu'au"
   }
 }

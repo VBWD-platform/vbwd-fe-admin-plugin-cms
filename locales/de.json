@@ -104,6 +104,27 @@
     "insertImage": "Einfügen",
     "editImage": "Bild bearbeiten",
     "noCategories": "Noch keine Kategorien.",
-    "noParent": "— keine —"
+    "noParent": "— keine —",
+    "allLayouts": "Alle Layouts",
+    "allStyles": "Alle Stile",
+    "assignCategory": "Kategorie zuweisen",
+    "change": "Ändern",
+    "clear": "Zurücksetzen",
+    "create": "Erstellen",
+    "deleteSelected": "Ausgewählte löschen",
+    "entries": "Einträge",
+    "featuredImage": "Beitragsbild",
+    "insertGallery": "Galerie einfügen",
+    "insertSelected": "Ausgewählte einfügen",
+    "remove": "Entfernen",
+    "searchable": "Durchsuchbar",
+    "selectAll": "Alle auswählen",
+    "selectAllEntries": "Alle Einträge auswählen",
+    "selectAllOnPage": "Alle auf dieser Seite auswählen",
+    "unsearchable": "Nicht durchsuchbar",
+    "unsetCategory": "Kategorie entfernen",
+    "unsetLayout": "Layout entfernen",
+    "updatedFrom": "Aktualisiert ab",
+    "updatedTo": "Aktualisiert bis"
   }
 }

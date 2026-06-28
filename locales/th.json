@@ -104,6 +104,27 @@
     "insertImage": "แทรก",
     "editImage": "แก้ไขรูปภาพ",
     "noCategories": "ยังไม่มีหมวดหมู่",
-    "noParent": "— ไม่มี —"
+    "noParent": "— ไม่มี —",
+    "allLayouts": "เลย์เอาต์ทั้งหมด",
+    "allStyles": "สไตล์ทั้งหมด",
+    "assignCategory": "กำหนดหมวดหมู่",
+    "change": "เปลี่ยน",
+    "clear": "ล้าง",
+    "create": "สร้าง",
+    "deleteSelected": "ลบที่เลือก",
+    "entries": "รายการ",
+    "featuredImage": "ภาพเด่น",
+    "insertGallery": "แทรกแกลเลอรี",
+    "insertSelected": "แทรกที่เลือก",
+    "remove": "นำออก",
+    "searchable": "ค้นหาได้",
+    "selectAll": "เลือกทั้งหมด",
+    "selectAllEntries": "เลือกรายการทั้งหมด",
+    "selectAllOnPage": "เลือกทั้งหมดในหน้านี้",
+    "unsearchable": "ค้นหาไม่ได้",
+    "unsetCategory": "ยกเลิกหมวดหมู่",
+    "unsetLayout": "ยกเลิกเลย์เอาต์",
+    "updatedFrom": "อัปเดตตั้งแต่",
+    "updatedTo": "อัปเดตถึง"
   }
 }
