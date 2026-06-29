@@ -50,7 +50,7 @@ const NAV_SECTIONS = [
 
 export const cmsAdminPlugin: IPlugin = {
   name: 'cms-admin',
-  version: '1.0.0',
+  version: '26.6',
   description: 'CMS Pages, Categories and Image Gallery management',
 
   install(sdk: IPlatformSDK) {
