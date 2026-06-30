@@ -1,5 +1,6 @@
 {
   "cms": {
+    "home": "Accueil",
     "snippets": {
       "title": "Scripts personnalisés / extraits",
       "trustHint": "Les extraits s'exécutent tels quels dans le navigateur de chaque visiteur — cela équivaut à un accès shell au site.",

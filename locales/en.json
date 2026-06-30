@@ -1,5 +1,6 @@
 {
   "cms": {
+    "home": "Home",
     "newPost": "New Post",
     "editPost": "Edit Post",
     "save": "Save",

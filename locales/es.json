@@ -1,5 +1,6 @@
 {
   "cms": {
+    "home": "Inicio",
     "snippets": {
       "title": "Scripts personalizados / fragmentos",
       "trustHint": "Los fragmentos se ejecutan tal cual en el navegador de cada visitante: equivale a acceso de shell al sitio.",

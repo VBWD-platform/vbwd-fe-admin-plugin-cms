@@ -9,6 +9,7 @@
 
 import type { IPlugin, IPlatformSDK } from 'vbwd-view-component';
 import { extensionRegistry } from '../../vue/src/plugins/extensionRegistry';
+import CmsHomeLink from './src/components/CmsHomeLink.vue';
 import './src/cms-admin.css';
 
 // Shared widget-editor seam (D9). Re-exported from this stable plugin path so
@@ -30,6 +31,12 @@ import ja from './locales/ja.json';
 import zh from './locales/zh.json';
 import th from './locales/th.json';
 
+// Right-aligned topbar action: a "Home" link to the public site root of the
+// current instance. Rendered by the core AdminTopbar via the extension registry.
+const TOPBAR_ACTIONS = [
+  { id: 'cms-home', component: CmsHomeLink, order: 100 },
+];
+
 const NAV_SECTIONS = [
   {
     id: 'cms',
@@ -48,6 +55,13 @@ const NAV_SECTIONS = [
   },
 ];
 
+// The full admin extension this plugin contributes (sidebar + topbar). Used by
+// both install() and activate() so re-activation restores everything.
+const CMS_ADMIN_EXTENSION = {
+  navSections: NAV_SECTIONS,
+  topbarActions: TOPBAR_ACTIONS,
+};
+
 export const cmsAdminPlugin: IPlugin = {
   name: 'cms-admin',
   version: '26.6.1',
@@ -64,8 +78,9 @@ export const cmsAdminPlugin: IPlugin = {
     sdk.addTranslations('zh', { cms: (zh as Record<string, unknown>)['cms'] });
     sdk.addTranslations('th', { cms: (th as Record<string, unknown>)['cms'] });
 
-    // Register sidebar nav section (also done in activate for re-activation support)
-    extensionRegistry.register('cms-admin', { navSections: NAV_SECTIONS });
+    // Register sidebar nav section + topbar "Home" link (also done in activate
+    // for re-activation support)
+    extensionRegistry.register('cms-admin', CMS_ADMIN_EXTENSION);
 
     // Register admin routes (added as children of the 'admin' layout route)
     // Unified type-aware authoring (S47.6) — additive alongside the legacy
@@ -177,8 +192,8 @@ export const cmsAdminPlugin: IPlugin = {
   },
 
   activate() {
-    // Re-register nav sections (supports re-activation after deactivate)
-    extensionRegistry.register('cms-admin', { navSections: NAV_SECTIONS });
+    // Re-register nav sections + topbar action (supports re-activation after deactivate)
+    extensionRegistry.register('cms-admin', CMS_ADMIN_EXTENSION);
   },
 
   deactivate() {

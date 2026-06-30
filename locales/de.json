@@ -1,5 +1,6 @@
 {
   "cms": {
+    "home": "Startseite",
     "snippets": {
       "title": "Benutzerdefinierte Skripte / Snippets",
       "trustHint": "Snippets laufen unverändert im Browser jedes Besuchers — das entspricht Shell-Zugriff auf die Website.",
