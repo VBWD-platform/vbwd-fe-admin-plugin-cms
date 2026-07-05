@@ -62,6 +62,7 @@ export interface CmsLayout {
   sort_order: number;
   is_active: boolean;
   is_default: boolean;
+  head_html?: string | null;
   updated_at: string;
 }
 

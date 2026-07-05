@@ -292,6 +292,22 @@
           </div>
         </div>
       </div>
+
+      <!-- Raw <head> HTML injected on every page using this layout -->
+      <div class="head-html-section card">
+        <h3 class="section-title">
+          &lt;head&gt;
+        </h3>
+        <p class="hint">
+          Raw HTML injected before &lt;/head&gt; on every page using this layout (scripts, styles, meta tags…).
+        </p>
+        <CodeMirrorEditor
+          v-model="form.head_html"
+          lang="html"
+          min-height="200px"
+          data-testid="layout-head-html"
+        />
+      </div>
     </div>
 
     <!-- Preview tab -->
@@ -357,6 +373,7 @@ import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api';
 import type { CmsAreaDefinition, CmsLayoutWidgetAssignment, CmsWidget } from '../stores/useCmsAdminStore';
 import CmsWidgetPicker from '../components/CmsWidgetPicker.vue';
+import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
 
 const AREA_TYPES = ['header', 'footer', 'hero', 'slideshow', 'content', 'three-column', 'two-column', 'cta-bar', 'vue', 'page-widget'];
 
@@ -377,6 +394,7 @@ const form = ref({
   sort_order: 0,
   is_active: true,
   areas: [] as CmsAreaDefinition[],
+  head_html: '',
 });
 
 const assignments = ref<CmsLayoutWidgetAssignment[]>([]);
@@ -530,6 +548,7 @@ onMounted(async () => {
         sort_order: l.sort_order,
         is_active: l.is_active,
         areas: l.areas ? [...l.areas] : [],
+        head_html: l.head_html ?? '',
       };
       if (l.assignments) {
         assignments.value = l.assignments.map(a => ({ ...a }));
