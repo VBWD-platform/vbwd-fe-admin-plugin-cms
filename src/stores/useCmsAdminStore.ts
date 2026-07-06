@@ -28,6 +28,9 @@ export interface SeoSettings {
   sitemap_excluded_slugs: string[];
   sitemap_include_terms: string[];
   sitemap_exclude_terms: string[];
+  minify_prerender_output: boolean;
+  seo_serve_to_humans: boolean;
+  seo_serve_exclude_prefixes: string;
 }
 
 export interface PaginatedResult<T> {

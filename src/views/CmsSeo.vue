@@ -44,6 +44,15 @@
       >
         Sitemap.xml
       </button>
+      <button
+        class="cms-seo__tab"
+        :class="{ 'cms-seo__tab--active': activeTab === 'serving' }"
+        data-testid="tab-serving"
+        type="button"
+        @click="activeTab = 'serving'"
+      >
+        Serving
+      </button>
     </nav>
 
     <!-- Prerendered content (default) -->
@@ -307,6 +316,87 @@
         {{ sitemapError }}
       </p>
     </section>
+
+    <!-- Serving -->
+    <section
+      v-show="activeTab === 'serving'"
+      class="cms-seo__card"
+    >
+      <h2 class="cms-seo__section-title">
+        Serving
+      </h2>
+      <p class="cms-seo__hint">
+        Control who is served the prerendered <code>.html</code> and how it is
+        emitted. By default only crawlers get the prerender and humans get the
+        SPA shell. <strong>Serve to humans</strong> lets visitors on public
+        content routes receive the fast prerender too; the excluded prefixes
+        (e.g. <code>dashboard</code>, <code>checkout</code>, <code>cart</code>)
+        always fall back to the SPA so a private page is never served an
+        anonymous prerender.
+      </p>
+      <p
+        class="cms-seo__hint cms-seo__hint--warn"
+        data-testid="serving-restart-hint"
+      >
+        Changing serve mode requires an fe-user redeploy/restart to take effect.
+      </p>
+
+      <label class="cms-seo__field cms-seo__field--inline">
+        <input
+          v-model="serveToHumans"
+          type="checkbox"
+          data-testid="seo-serve-to-humans"
+        >
+        <span>Serve prerendered content to human visitors (not only crawlers)</span>
+      </label>
+
+      <label class="cms-seo__field cms-seo__field--inline">
+        <input
+          v-model="minifyOutput"
+          type="checkbox"
+          data-testid="seo-minify-output"
+        >
+        <span>Minify emitted prerender HTML (inline CSS/JS + inter-tag whitespace)</span>
+      </label>
+
+      <label class="cms-seo__field">
+        <span class="cms-seo__label">Excluded URL prefixes (always served the SPA)</span>
+        <input
+          v-model="serveExcludePrefixes"
+          type="text"
+          class="cms-seo__input"
+          data-testid="seo-serve-exclude-prefixes"
+          spellcheck="false"
+          placeholder="comma-separated, e.g. dashboard,checkout,cart"
+        >
+      </label>
+
+      <div class="cms-seo__actions">
+        <button
+          class="btn btn--primary"
+          data-testid="serving-save"
+          :disabled="servingSaving"
+          @click="doSaveServing"
+        >
+          {{ servingSaving ? 'Saving…' : 'Save serving settings' }}
+        </button>
+      </div>
+
+      <p
+        v-if="servingSaved"
+        class="cms-seo__result"
+        data-testid="serving-saved"
+      >
+        Saved.
+      </p>
+      <p
+        v-if="servingError"
+        class="cms-seo__error"
+        data-testid="serving-error"
+      >
+        {{ servingError }}
+      </p>
+    </section>
   </div>
 </template>
 
@@ -315,7 +405,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useCmsAdminStore, type CmsTerm } from '../stores/useCmsAdminStore';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
 
-type SeoTab = 'prerender' | 'robots' | 'head-html' | 'sitemap';
+type SeoTab = 'prerender' | 'robots' | 'head-html' | 'sitemap' | 'serving';
 
 const store = useCmsAdminStore();
 
@@ -350,6 +440,14 @@ const sitemapSaving = ref(false);
 const sitemapSaved = ref(false);
 const sitemapError = ref('');
 
+// ── Serving tab ──────────────────────────────────────────────────────────────
+const serveToHumans = ref(false);
+const minifyOutput = ref(false);
+const serveExcludePrefixes = ref('dashboard,checkout,cart');
+const servingSaving = ref(false);
+const servingSaved = ref(false);
+const servingError = ref('');
+
 const excludedSlugs = computed<string[]>(() =>
   excludedSlugsText.value
     .split(/[\n,]/)
@@ -370,6 +468,10 @@ async function loadSettings() {
     excludedSlugsText.value = (settings.sitemap_excluded_slugs ?? []).join('\n');
     includeTerms.value = settings.sitemap_include_terms ?? [];
     excludeTerms.value = settings.sitemap_exclude_terms ?? [];
+    serveToHumans.value = settings.seo_serve_to_humans ?? false;
+    minifyOutput.value = settings.minify_prerender_output ?? false;
+    serveExcludePrefixes.value =
+      settings.seo_serve_exclude_prefixes ?? 'dashboard,checkout,cart';
   } catch (e: any) {
     robotsError.value = e?.message ?? 'Failed to load settings';
     sitemapError.value = e?.message ?? 'Failed to load settings';
@@ -462,6 +564,24 @@ async function doSaveSitemap() {
     sitemapSaving.value = false;
   }
 }
+
+async function doSaveServing() {
+  servingError.value = '';
+  servingSaved.value = false;
+  servingSaving.value = true;
+  try {
+    await store.saveSeoSettings({
+      seo_serve_to_humans: serveToHumans.value,
+      minify_prerender_output: minifyOutput.value,
+      seo_serve_exclude_prefixes: serveExcludePrefixes.value,
+    });
+    servingSaved.value = true;
+  } catch (e: any) {
+    servingError.value = e?.message ?? 'Save failed';
+  } finally {
+    servingSaving.value = false;
+  }
+}
 </script>
 
 <style scoped>
@@ -535,7 +655,8 @@ async function doSaveSitemap() {
 }
 
 .cms-seo__textarea,
-.cms-seo__select {
+.cms-seo__select,
+.cms-seo__input {
   width: 100%;
   box-sizing: border-box;
   font-family: inherit;
@@ -543,6 +664,11 @@ async function doSaveSitemap() {
   padding: 0.5rem;
   border: 1px solid var(--admin-border-light, #e5e7eb);
   border-radius: 6px;
+}
+
+.cms-seo__hint--warn {
+  color: var(--admin-danger, #e74c3c);
+  font-weight: 600;
 }
 .cms-seo__textarea {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

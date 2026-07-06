@@ -27,6 +27,9 @@ const SETTINGS = {
   sitemap_excluded_slugs: ['draft-one', 'draft-two'],
   sitemap_include_terms: ['news'],
   sitemap_exclude_terms: ['archive'],
+  minify_prerender_output: true,
+  seo_serve_to_humans: true,
+  seo_serve_exclude_prefixes: 'dashboard,checkout,cart,account',
 };
 
 const CATEGORIES = [
@@ -201,5 +204,46 @@ describe('CmsSeo.vue', () => {
       sitemap_include_terms: ['news'],
       sitemap_exclude_terms: ['archive'],
     });
+  });
+
+  // ── Serving tab ─────────────────────────────────────────────────────────────
+
+  it('renders the Serving tab and loads the three serving settings', async () => {
+    const wrapper = await mountSeo();
+    expect(wrapper.find('[data-testid="tab-serving"]').exists()).toBe(true);
+
+    await wrapper.find('[data-testid="tab-serving"]').trigger('click');
+
+    const serveToHumans = wrapper.find('[data-testid="seo-serve-to-humans"]');
+    expect((serveToHumans.element as HTMLInputElement).checked).toBe(true);
+
+    const minify = wrapper.find('[data-testid="seo-minify-output"]');
+    expect((minify.element as HTMLInputElement).checked).toBe(true);
+
+    const prefixes = wrapper.find('[data-testid="seo-serve-exclude-prefixes"]');
+    expect((prefixes.element as HTMLInputElement).value).toBe('dashboard,checkout,cart,account');
+
+    // The restart requirement is surfaced to the operator.
+    expect(wrapper.find('[data-testid="serving-restart-hint"]').text()).toContain(
+      'requires an fe-user redeploy/restart',
+    );
+  });
+
+  it('saves the serving settings with the right payload', async () => {
+    const wrapper = await mountSeo();
+    await wrapper.find('[data-testid="tab-serving"]').trigger('click');
+
+    await wrapper.find('[data-testid="seo-serve-to-humans"]').setValue(false);
+    await wrapper.find('[data-testid="seo-minify-output"]').setValue(false);
+    await wrapper.find('[data-testid="seo-serve-exclude-prefixes"]').setValue('dashboard,cart');
+    await wrapper.find('[data-testid="serving-save"]').trigger('click');
+    await flushPromises();
+
+    expect(api.put).toHaveBeenCalledWith('/admin/cms/seo/settings', {
+      seo_serve_to_humans: false,
+      minify_prerender_output: false,
+      seo_serve_exclude_prefixes: 'dashboard,cart',
+    });
+    expect(wrapper.find('[data-testid="serving-saved"]').exists()).toBe(true);
   });
 });
