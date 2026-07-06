@@ -23,6 +23,7 @@ export interface CmsTerm {
 
 export interface SeoSettings {
   robots_txt: string;
+  global_head_html: string;
   sitemap_include_pages: boolean;
   sitemap_excluded_slugs: string[];
   sitemap_include_terms: string[];

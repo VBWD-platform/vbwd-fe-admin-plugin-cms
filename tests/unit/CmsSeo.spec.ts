@@ -8,8 +8,21 @@ vi.mock('@/api', () => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 
+// Stub the CodeMirror editor with a plain textarea honouring the same v-model
+// contract; the parent's `data-testid` falls through onto the textarea root so
+// the Head HTML field stays addressable without the heavy codemirror runtime.
+const CodeMirrorStub = {
+  name: 'CodeMirrorEditor',
+  props: ['modelValue', 'lang', 'minHeight'],
+  emits: ['update:modelValue'],
+  template:
+    '<textarea :value="modelValue" ' +
+    '@input="$emit(\'update:modelValue\', $event.target.value)" />',
+};
+
 const SETTINGS = {
   robots_txt: 'User-agent: *\nDisallow: /secret',
+  global_head_html: '<meta name="msvalidate.01" content="ABC123" />',
   sitemap_include_pages: false,
   sitemap_excluded_slugs: ['draft-one', 'draft-two'],
   sitemap_include_terms: ['news'],
@@ -38,7 +51,9 @@ function primeApi() {
 }
 
 async function mountSeo() {
-  const wrapper = mount(CmsSeo);
+  const wrapper = mount(CmsSeo, {
+    global: { stubs: { CodeMirrorEditor: CodeMirrorStub } },
+  });
   await flushPromises();
   return wrapper;
 }
@@ -60,6 +75,32 @@ describe('CmsSeo.vue', () => {
     // default tab shows the existing prerender actions
     expect(wrapper.find('[data-testid="seo-generate"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="seo-cleanup"]').exists()).toBe(true);
+  });
+
+  // ── Head HTML tab ───────────────────────────────────────────────────────────
+
+  it('renders the Head HTML tab and loads global_head_html into the editor', async () => {
+    const wrapper = await mountSeo();
+    expect(wrapper.find('[data-testid="tab-head-html"]').exists()).toBe(true);
+
+    await wrapper.find('[data-testid="tab-head-html"]').trigger('click');
+    const editor = wrapper.find('[data-testid="seo-global-head-html"]');
+    expect(editor.exists()).toBe(true);
+    expect((editor.element as HTMLTextAreaElement).value).toBe(SETTINGS.global_head_html);
+  });
+
+  it('saves global_head_html via PUT settings', async () => {
+    const wrapper = await mountSeo();
+    await wrapper.find('[data-testid="tab-head-html"]').trigger('click');
+
+    const snippet = '<meta name="msvalidate.01" content="NEWKEY" />';
+    await wrapper.find('[data-testid="seo-global-head-html"]').setValue(snippet);
+    await wrapper.find('[data-testid="head-html-save"]').trigger('click');
+    await flushPromises();
+
+    expect(api.put).toHaveBeenCalledWith('/admin/cms/seo/settings', {
+      global_head_html: snippet,
+    });
   });
 
   // ── Prerendered tab (existing behavior, unchanged) ──────────────────────────

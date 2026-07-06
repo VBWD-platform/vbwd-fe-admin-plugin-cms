@@ -28,6 +28,15 @@
       </button>
       <button
         class="cms-seo__tab"
+        :class="{ 'cms-seo__tab--active': activeTab === 'head-html' }"
+        data-testid="tab-head-html"
+        type="button"
+        @click="activeTab = 'head-html'"
+      >
+        &lt;head&gt; HTML
+      </button>
+      <button
+        class="cms-seo__tab"
         :class="{ 'cms-seo__tab--active': activeTab === 'sitemap' }"
         data-testid="tab-sitemap"
         type="button"
@@ -147,6 +156,58 @@
       </p>
     </section>
 
+    <!-- <head> HTML -->
+    <section
+      v-show="activeTab === 'head-html'"
+      class="cms-seo__card"
+    >
+      <h2 class="cms-seo__section-title">
+        &lt;head&gt; HTML
+      </h2>
+      <p class="cms-seo__hint">
+        Raw HTML injected before <code>&lt;/head&gt;</code> on
+        <strong>every</strong> prerendered page (site-wide) — the crawler-visible
+        home for site-verification tags (Bing <code>msvalidate.01</code>),
+        Google Analytics / GTM snippets, etc. It is baked into the static
+        <code>.html</code> files, so click
+        <strong>Generate</strong> on the Prerendered content tab afterwards to
+        rewrite existing prerenders.
+      </p>
+
+      <CodeMirrorEditor
+        v-model="globalHeadHtml"
+        lang="html"
+        min-height="200px"
+        data-testid="seo-global-head-html"
+      />
+
+      <div class="cms-seo__actions">
+        <button
+          class="btn btn--primary"
+          data-testid="head-html-save"
+          :disabled="headHtmlSaving"
+          @click="doSaveHeadHtml"
+        >
+          {{ headHtmlSaving ? 'Saving…' : 'Save <head> HTML' }}
+        </button>
+      </div>
+
+      <p
+        v-if="headHtmlSaved"
+        class="cms-seo__result"
+        data-testid="head-html-saved"
+      >
+        Saved.
+      </p>
+      <p
+        v-if="headHtmlError"
+        class="cms-seo__error"
+        data-testid="head-html-error"
+      >
+        {{ headHtmlError }}
+      </p>
+    </section>
+
     <!-- Sitemap.xml -->
     <section
       v-show="activeTab === 'sitemap'"
@@ -252,8 +313,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useCmsAdminStore, type CmsTerm } from '../stores/useCmsAdminStore';
+import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
 
-type SeoTab = 'prerender' | 'robots' | 'sitemap';
+type SeoTab = 'prerender' | 'robots' | 'head-html' | 'sitemap';
 
 const store = useCmsAdminStore();
 
@@ -271,6 +333,12 @@ const robotsTxt = ref('');
 const robotsSaving = ref(false);
 const robotsSaved = ref(false);
 const robotsError = ref('');
+
+// ── Head HTML tab ─────────────────────────────────────────────────────────────
+const globalHeadHtml = ref('');
+const headHtmlSaving = ref(false);
+const headHtmlSaved = ref(false);
+const headHtmlError = ref('');
 
 // ── Sitemap tab ──────────────────────────────────────────────────────────────
 const sitemapIncludePages = ref(true);
@@ -297,6 +365,7 @@ async function loadSettings() {
   try {
     const settings = await store.fetchSeoSettings();
     robotsTxt.value = settings.robots_txt ?? '';
+    globalHeadHtml.value = settings.global_head_html ?? '';
     sitemapIncludePages.value = settings.sitemap_include_pages ?? true;
     excludedSlugsText.value = (settings.sitemap_excluded_slugs ?? []).join('\n');
     includeTerms.value = settings.sitemap_include_terms ?? [];
@@ -358,6 +427,20 @@ async function doSaveRobots() {
     robotsError.value = e?.message ?? 'Save failed';
   } finally {
     robotsSaving.value = false;
+  }
+}
+
+async function doSaveHeadHtml() {
+  headHtmlError.value = '';
+  headHtmlSaved.value = false;
+  headHtmlSaving.value = true;
+  try {
+    await store.saveSeoSettings({ global_head_html: globalHeadHtml.value });
+    headHtmlSaved.value = true;
+  } catch (e: any) {
+    headHtmlError.value = e?.message ?? 'Save failed';
+  } finally {
+    headHtmlSaving.value = false;
   }
 }
 
