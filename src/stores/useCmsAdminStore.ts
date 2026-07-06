@@ -31,6 +31,9 @@ export interface SeoSettings {
   minify_prerender_output: boolean;
   seo_serve_to_humans: boolean;
   seo_serve_exclude_prefixes: string;
+  indexnow_enabled: boolean;
+  indexnow_key: string;
+  indexnow_endpoint: string;
 }
 
 export interface PaginatedResult<T> {

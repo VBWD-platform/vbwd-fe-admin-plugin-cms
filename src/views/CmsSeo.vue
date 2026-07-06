@@ -53,6 +53,15 @@
       >
         Serving
       </button>
+      <button
+        class="cms-seo__tab"
+        :class="{ 'cms-seo__tab--active': activeTab === 'indexnow' }"
+        data-testid="tab-indexnow"
+        type="button"
+        @click="activeTab = 'indexnow'"
+      >
+        IndexNow
+      </button>
     </nav>
 
     <!-- Prerendered content (default) -->
@@ -397,6 +406,89 @@
         {{ servingError }}
       </p>
     </section>
+
+    <!-- IndexNow -->
+    <section
+      v-show="activeTab === 'indexnow'"
+      class="cms-seo__card"
+    >
+      <h2 class="cms-seo__section-title">
+        IndexNow
+      </h2>
+      <p class="cms-seo__hint">
+        <strong>IndexNow</strong> instantly notifies Bing, Yandex, Seznam and
+        other participating engines whenever a page is published or updated, so
+        they recrawl it right away (the fix for
+        <em>“Discovered — currently not indexed”</em>). The verification key is
+        served at the site root as
+        <code>/&lt;key&gt;.txt</code>; the engine fetches it to confirm you own
+        the host before accepting submissions. Requires a
+        <strong>public base URL</strong> to be configured for the site.
+      </p>
+
+      <label class="cms-seo__field cms-seo__field--inline">
+        <input
+          v-model="indexnowEnabled"
+          type="checkbox"
+          data-testid="indexnow-enabled"
+        >
+        <span>Enable IndexNow submissions on publish/update</span>
+      </label>
+
+      <label class="cms-seo__field">
+        <span class="cms-seo__label">Key</span>
+        <input
+          v-model="indexnowKey"
+          type="text"
+          class="cms-seo__input"
+          data-testid="indexnow-key"
+          spellcheck="false"
+          placeholder="8–128 chars of letters, digits and hyphens"
+        >
+        <span class="cms-seo__hint">
+          Allowed: <code>A–Z a–z 0–9 -</code>, 8–128 characters. Served at
+          <code>/{{ indexnowKey || '&lt;key&gt;' }}.txt</code>.
+        </span>
+      </label>
+
+      <label class="cms-seo__field">
+        <span class="cms-seo__label">Submission endpoint</span>
+        <input
+          v-model="indexnowEndpoint"
+          type="text"
+          class="cms-seo__input"
+          data-testid="indexnow-endpoint"
+          spellcheck="false"
+          placeholder="https://api.indexnow.org/indexnow"
+        >
+      </label>
+
+      <div class="cms-seo__actions">
+        <button
+          class="btn btn--primary"
+          data-testid="indexnow-save"
+          :disabled="indexnowSaving"
+          @click="doSaveIndexNow"
+        >
+          {{ indexnowSaving ? 'Saving…' : 'Save IndexNow settings' }}
+        </button>
+      </div>
+
+      <p
+        v-if="indexnowSaved"
+        class="cms-seo__result"
+        data-testid="indexnow-saved"
+      >
+        Saved.
+      </p>
+      <p
+        v-if="indexnowError"
+        class="cms-seo__error"
+        data-testid="indexnow-error"
+      >
+        {{ indexnowError }}
+      </p>
+    </section>
   </div>
 </template>
 
@@ -405,7 +497,13 @@ import { computed, onMounted, ref } from 'vue';
 import { useCmsAdminStore, type CmsTerm } from '../stores/useCmsAdminStore';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
 
-type SeoTab = 'prerender' | 'robots' | 'head-html' | 'sitemap' | 'serving';
+type SeoTab =
+  | 'prerender'
+  | 'robots'
+  | 'head-html'
+  | 'sitemap'
+  | 'serving'
+  | 'indexnow';
 
 const store = useCmsAdminStore();
 
@@ -448,6 +546,14 @@ const servingSaving = ref(false);
 const servingSaved = ref(false);
 const servingError = ref('');
 
+// ── IndexNow tab ─────────────────────────────────────────────────────────────
+const indexnowEnabled = ref(false);
+const indexnowKey = ref('');
+const indexnowEndpoint = ref('https://api.indexnow.org/indexnow');
+const indexnowSaving = ref(false);
+const indexnowSaved = ref(false);
+const indexnowError = ref('');
+
 const excludedSlugs = computed<string[]>(() =>
   excludedSlugsText.value
     .split(/[\n,]/)
@@ -472,6 +578,10 @@ async function loadSettings() {
     minifyOutput.value = settings.minify_prerender_output ?? false;
     serveExcludePrefixes.value =
       settings.seo_serve_exclude_prefixes ?? 'dashboard,checkout,cart';
+    indexnowEnabled.value = settings.indexnow_enabled ?? false;
+    indexnowKey.value = settings.indexnow_key ?? '';
+    indexnowEndpoint.value =
+      settings.indexnow_endpoint ?? 'https://api.indexnow.org/indexnow';
   } catch (e: any) {
     robotsError.value = e?.message ?? 'Failed to load settings';
     sitemapError.value = e?.message ?? 'Failed to load settings';
@@ -580,6 +690,24 @@ async function doSaveServing() {
     servingError.value = e?.message ?? 'Save failed';
   } finally {
     servingSaving.value = false;
+  }
+}
+
+async function doSaveIndexNow() {
+  indexnowError.value = '';
+  indexnowSaved.value = false;
+  indexnowSaving.value = true;
+  try {
+    await store.saveSeoSettings({
+      indexnow_enabled: indexnowEnabled.value,
+      indexnow_key: indexnowKey.value,
+      indexnow_endpoint: indexnowEndpoint.value,
+    });
+    indexnowSaved.value = true;
+  } catch (e: any) {
+    indexnowError.value = e?.message ?? 'Save failed';
+  } finally {
+    indexnowSaving.value = false;
   }
 }
 </script>

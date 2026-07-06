@@ -30,6 +30,9 @@ const SETTINGS = {
   minify_prerender_output: true,
   seo_serve_to_humans: true,
   seo_serve_exclude_prefixes: 'dashboard,checkout,cart,account',
+  indexnow_enabled: true,
+  indexnow_key: 'abcdef0123456789key',
+  indexnow_endpoint: 'https://api.indexnow.org/indexnow',
 };
 
 const CATEGORIES = [
@@ -245,5 +248,45 @@ describe('CmsSeo.vue', () => {
       seo_serve_exclude_prefixes: 'dashboard,cart',
     });
     expect(wrapper.find('[data-testid="serving-saved"]').exists()).toBe(true);
+  });
+
+  // ── IndexNow tab ────────────────────────────────────────────────────────────
+
+  it('renders the IndexNow tab and loads the three IndexNow settings', async () => {
+    const wrapper = await mountSeo();
+    expect(wrapper.find('[data-testid="tab-indexnow"]').exists()).toBe(true);
+
+    await wrapper.find('[data-testid="tab-indexnow"]').trigger('click');
+
+    const enabled = wrapper.find('[data-testid="indexnow-enabled"]');
+    expect((enabled.element as HTMLInputElement).checked).toBe(true);
+
+    const key = wrapper.find('[data-testid="indexnow-key"]');
+    expect((key.element as HTMLInputElement).value).toBe('abcdef0123456789key');
+
+    const endpoint = wrapper.find('[data-testid="indexnow-endpoint"]');
+    expect((endpoint.element as HTMLInputElement).value).toBe(
+      'https://api.indexnow.org/indexnow',
+    );
+  });
+
+  it('saves the IndexNow settings with the right payload', async () => {
+    const wrapper = await mountSeo();
+    await wrapper.find('[data-testid="tab-indexnow"]').trigger('click');
+
+    await wrapper.find('[data-testid="indexnow-enabled"]').setValue(false);
+    await wrapper.find('[data-testid="indexnow-key"]').setValue('newkey12345678');
+    await wrapper
+      .find('[data-testid="indexnow-endpoint"]')
+      .setValue('https://www.bing.com/indexnow');
+    await wrapper.find('[data-testid="indexnow-save"]').trigger('click');
+    await flushPromises();
+
+    expect(api.put).toHaveBeenCalledWith('/admin/cms/seo/settings', {
+      indexnow_enabled: false,
+      indexnow_key: 'newkey12345678',
+      indexnow_endpoint: 'https://www.bing.com/indexnow',
+    });
+    expect(wrapper.find('[data-testid="indexnow-saved"]').exists()).toBe(true);
   });
 });
