@@ -12,6 +12,7 @@ import CustomCodeEditorTab from './CustomCodeEditorTab.vue';
 import SearchEditorTab from './SearchEditorTab.vue';
 import SearchResultsEditorTab from './SearchResultsEditorTab.vue';
 import CategoryEditorTab from './CategoryEditorTab.vue';
+import PostArchiveEditorTab from './PostArchiveEditorTab.vue';
 import AddonCatalogEditorTab from './AddonCatalogEditorTab.vue';
 import TariffPlanCollectionEditorTab from './TariffPlanCollectionEditorTab.vue';
 import TokenBundleCollectionEditorTab from './TokenBundleCollectionEditorTab.vue';
@@ -285,6 +286,32 @@ registerWidgetEditor({
   buildPreview() {
     return {
       html: '<ul style="list-style:none;padding:0"><li style="padding:.5rem 0;border-bottom:1px solid #eee">Result title one</li><li style="padding:.5rem 0;border-bottom:1px solid #eee">Result title two</li></ul>',
+    };
+  },
+});
+
+// ── PostArchive ───────────────────────────────────────────────────────────────
+// fe-user component PostArchiveWidget.vue — lists ALL published posts (blog
+// index), paginated. Like Category but WITHOUT a term filter (no term_slug).
+
+registerWidgetEditor({
+  componentName: 'PostArchive',
+
+  defaultConfig: () => ({
+    component_name: 'PostArchive',
+    type: 'post',
+    mode: 'category',
+    posts_per_page: 20,
+    paginate: true,
+  }),
+
+  generalTabComponent: PostArchiveEditorTab,
+
+  cssHint: 'Target <code>.post-archive-widget</code>, <code>.post-list</code>, <code>.post-card</code>.',
+
+  buildPreview() {
+    return {
+      html: '<div class="post-list post-list--excerpt"><article style="padding:.75rem 0;border-bottom:1px solid #eee"><h2 style="margin:0 0 .25rem">First post title</h2><p style="margin:0;color:#666">A short excerpt of the first post…</p></article><article style="padding:.75rem 0;border-bottom:1px solid #eee"><h2 style="margin:0 0 .25rem">Second post title</h2><p style="margin:0;color:#666">A short excerpt of the second post…</p></article></div>',
     };
   },
 });

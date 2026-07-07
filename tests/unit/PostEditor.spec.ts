@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mount, flushPromises, enableAutoUnmount, type VueWrapper } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
 import { createRouter, createMemoryHistory, type Router } from 'vue-router';
@@ -26,6 +26,10 @@ const i18n = createI18n({
   fallbackLocale: 'en',
   messages: { en },
 });
+
+// Auto-unmount each wrapper so the editor's debounced permalink-preview timer
+// (S122) is cancelled via onBeforeUnmount and never fires during a later test.
+enableAutoUnmount(afterEach);
 
 // Lightweight stand-in for the CodeMirror-backed editor: a plain textarea that
 // emits `update:modelValue`, so tests can drive the HTML/CSS tabs without the

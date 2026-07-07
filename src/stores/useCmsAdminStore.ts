@@ -36,6 +36,23 @@ export interface SeoSettings {
   indexnow_endpoint: string;
 }
 
+/** Post-permalink engine config (S122), a subset of the cms plugin config. */
+export interface PermalinkConfig {
+  posts_permalink_mode: 'off' | 'structured' | 'template';
+  posts_root: string;
+  posts_permalink_include_year: boolean;
+  posts_permalink_uncategorized_slug: string;
+  posts_permalink_template: string;
+}
+
+export const PERMALINK_CONFIG_DEFAULTS: PermalinkConfig = {
+  posts_permalink_mode: 'off',
+  posts_root: 'blog',
+  posts_permalink_include_year: false,
+  posts_permalink_uncategorized_slug: 'uncategorized',
+  posts_permalink_template: '%root%/%category%/%slug%',
+};
+
 export interface PaginatedResult<T> {
   items: T[];
   total: number;
@@ -432,6 +449,53 @@ export const useCmsAdminStore = defineStore('cms-admin', {
 
     async saveSeoSettings(payload: Partial<SeoSettings>): Promise<void> {
       await api.put<SeoSettings>('/admin/cms/seo/settings', payload);
+    },
+
+    // Post-permalink engine config (S122). The five keys live in the cms plugin
+    // config blob; they are read/written through the generic plugin-config
+    // endpoints (schema defaults overlaid with the saved values). No new backend
+    // plumbing — the cms config.json already declares the keys with defaults.
+    async fetchPermalinkConfig(): Promise<PermalinkConfig> {
+      const res = await api.get<{
+        configSchema?: Record<string, { default?: unknown }>;
+        savedConfig?: Record<string, unknown>;
+      }>('/admin/plugins/cms');
+      const merged: Record<string, unknown> = {};
+      for (const [key, field] of Object.entries(res.configSchema ?? {})) {
+        merged[key] = field?.default;
+      }
+      Object.assign(merged, res.savedConfig ?? {});
+      return {
+        posts_permalink_mode:
+          (merged.posts_permalink_mode as PermalinkConfig['posts_permalink_mode']) ??
+          PERMALINK_CONFIG_DEFAULTS.posts_permalink_mode,
+        posts_root:
+          (merged.posts_root as string) ?? PERMALINK_CONFIG_DEFAULTS.posts_root,
+        posts_permalink_include_year: !!merged.posts_permalink_include_year,
+        posts_permalink_uncategorized_slug:
+          (merged.posts_permalink_uncategorized_slug as string) ??
+          PERMALINK_CONFIG_DEFAULTS.posts_permalink_uncategorized_slug,
+        posts_permalink_template:
+          (merged.posts_permalink_template as string) ??
+          PERMALINK_CONFIG_DEFAULTS.posts_permalink_template,
+      };
+    },
+
+    // Read-modify-write: the plugin-config PUT REPLACES the whole cms blob, so
+    // the permalink keys are merged into the FULL existing config (schema
+    // defaults overlaid with saved values) — never clobbering the SEO/upload
+    // keys the same blob holds.
+    async savePermalinkConfig(config: PermalinkConfig): Promise<void> {
+      const res = await api.get<{
+        configSchema?: Record<string, { default?: unknown }>;
+        savedConfig?: Record<string, unknown>;
+      }>('/admin/plugins/cms');
+      const full: Record<string, unknown> = {};
+      for (const [key, field] of Object.entries(res.configSchema ?? {})) {
+        full[key] = field?.default;
+      }
+      Object.assign(full, res.savedConfig ?? {}, config);
+      await api.put('/admin/plugins/cms/config', full);
     },
 
     // Terms used to populate the sitemap include/exclude pickers (option value

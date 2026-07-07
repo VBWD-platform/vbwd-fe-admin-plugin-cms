@@ -62,6 +62,15 @@
       >
         IndexNow
       </button>
+      <button
+        class="cms-seo__tab"
+        :class="{ 'cms-seo__tab--active': activeTab === 'permalinks' }"
+        data-testid="tab-permalinks"
+        type="button"
+        @click="activeTab = 'permalinks'"
+      >
+        Permalinks
+      </button>
     </nav>
 
     <!-- Prerendered content (default) -->
@@ -489,6 +498,17 @@
         {{ indexnowError }}
       </p>
     </section>
+
+    <!-- Permalinks (S122) — post-permalink engine config -->
+    <section
+      v-show="activeTab === 'permalinks'"
+      class="cms-seo__card"
+    >
+      <h2 class="cms-seo__section-title">
+        Post permalinks
+      </h2>
+      <PermalinkSettings />
+    </section>
   </div>
 </template>
 
@@ -496,6 +516,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useCmsAdminStore, type CmsTerm } from '../stores/useCmsAdminStore';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
+import PermalinkSettings from '../components/PermalinkSettings.vue';
 
 type SeoTab =
   | 'prerender'
@@ -503,7 +524,8 @@ type SeoTab =
   | 'head-html'
   | 'sitemap'
   | 'serving'
-  | 'indexnow';
+  | 'indexnow'
+  | 'permalinks';
 
 const store = useCmsAdminStore();
 

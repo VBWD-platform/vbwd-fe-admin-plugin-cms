@@ -110,6 +110,39 @@
             >
           </div>
         </div>
+
+        <!-- Live permalink preview (S122): the full path the post WOULD get,
+             computed by the backend renderer (DRY). Read-only. Posts only —
+             pages keep their hand-authored slug verbatim (§2). -->
+        <div
+          v-if="form.type === 'post'"
+          class="field-group permalink-preview"
+          data-testid="permalink-preview"
+        >
+          <label class="field-label">{{ $t('cms.permalinkPreview', 'Permalink preview') }}</label>
+          <div
+            class="permalink-preview__path"
+            data-testid="permalink-preview-path"
+          >
+            /{{ permalinkPreviewPath }}
+          </div>
+          <a
+            v-if="permalinkPreviewUrl"
+            :href="permalinkPreviewUrl"
+            target="_blank"
+            class="permalink-preview__url"
+            data-testid="permalink-preview-url"
+          >{{ permalinkPreviewUrl }}</a>
+          <p
+            v-if="permalinkCanonicalMismatch"
+            class="permalink-preview__mismatch"
+            data-testid="permalink-canonical-mismatch"
+          >
+            {{ $t('cms.permalinkCanonicalMismatch',
+                  'The canonical URL override differs from the computed permalink.') }}
+          </p>
+        </div>
+
         <div class="field-group">
           <label class="field-label">{{ $t('cms.excerpt') }}</label>
           <textarea
@@ -526,6 +559,26 @@
             </button>
           </div>
 
+          <!-- Magazine hero toggle — posts only. Default ON; unticking stores
+               show_featured_hero=false in type_data so the fe-user post render
+               falls back to the plain title header. -->
+          <div
+            v-if="form.type === 'post'"
+            class="field-group"
+          >
+            <label class="field-label">
+              <input
+                v-model="showFeaturedHeroModel"
+                type="checkbox"
+                data-testid="post-show-featured-hero"
+              >
+              &nbsp;{{ $t('cms.showFeaturedHero', 'Show featured hero (magazine header)') }}
+            </label>
+            <p class="page-widgets-hint">
+              {{ $t('cms.showFeaturedHeroHint', 'Render the title and excerpt over the featured image (or a themed gradient band) above the post body.') }}
+            </p>
+          </div>
+
           <div class="field-group">
             <label class="field-label">{{ $t('cms.type') }}</label>
             <select
@@ -700,6 +753,31 @@
             />
           </div>
 
+          <!-- Primary category (S122): the category whose ancestor chain feeds
+               the permalink engine's %category%/%subcategory% tokens. Chosen
+               ONLY from the post's currently-assigned categories; disabled with
+               no options until at least one category is assigned. -->
+          <div class="field-group">
+            <label class="field-label">{{ $t('cms.primaryCategory', 'Primary category') }}</label>
+            <select
+              v-model="form.primary_term_id"
+              class="field-input"
+              data-testid="primary-category-picker"
+              :disabled="!selectedCategories.length"
+            >
+              <option :value="null">
+                — {{ $t('cms.none') }} —
+              </option>
+              <option
+                v-for="cat in selectedCategories"
+                :key="cat.id"
+                :value="cat.id"
+              >
+                {{ cat.name }}
+              </option>
+            </select>
+          </div>
+
           <!-- Tag picker — cms_term taxonomy (S77 reversal). Mirrors the
                category picker but with inline create: typing offers a "create"
                option that adds a new cms_term('tag'); selected tags show as
@@ -765,7 +843,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   useCmsContentStore,
@@ -842,6 +920,9 @@ interface PostForm {
   source_css: string;
   type_data: Record<string, unknown>;
   parent_id: string | null;
+  /** Chosen primary category (S122) — feeds %category%/%subcategory% in the
+   *  permalink engine. Must be one of the post's assigned categories. */
+  primary_term_id: string | null;
   status: string;
   published_at: string | null;
   language: string;
@@ -882,6 +963,7 @@ const form = ref<PostForm>({
   source_css: '',
   type_data: {},
   parent_id: null,
+  primary_term_id: null,
   status: 'draft',
   published_at: null,
   language: 'en',
@@ -1023,6 +1105,16 @@ const postUrl = computed(() =>
 // type_data is kept as a plain object; this proxy keeps v-model bindings stable.
 const typeDataModel = computed<Record<string, unknown>>(() => form.value.type_data);
 
+// Magazine hero toggle (posts only), stored in type_data.show_featured_hero.
+// Absent = hero ON (default), so the checkbox reads checked unless the flag is
+// explicitly false; unticking writes `false` so the choice rides the payload.
+const showFeaturedHeroModel = computed<boolean>({
+  get: () => form.value.type_data.show_featured_hero !== false,
+  set: (value: boolean) => {
+    form.value.type_data = { ...form.value.type_data, show_featured_hero: value };
+  },
+});
+
 // ── Term selection ──────────────────────────────────────────────────────
 const selectedCategoryIds = ref<string[]>([]);
 const selectedTagIds = ref<string[]>([]);
@@ -1052,6 +1144,87 @@ function addCategory(id: string) {
 function removeCategory(id: string) {
   selectedCategoryIds.value = selectedCategoryIds.value.filter((c) => c !== id);
 }
+
+// ── Primary category (S122) ──────────────────────────────────────────────
+// The primary category MUST be one of the post's assigned categories; if the
+// current primary is unassigned (or the last one removed), clear it so the
+// permalink engine falls back to the first-assigned / uncategorized rule.
+watch(selectedCategoryIds, (ids) => {
+  if (form.value.primary_term_id && !ids.includes(form.value.primary_term_id)) {
+    form.value.primary_term_id = null;
+  }
+}, { deep: true });
+
+// ── Live permalink preview (S122) ────────────────────────────────────────
+// Reuses the exact backend renderer via the preview endpoint (DRY — no JS
+// re-implementation). Debounced; recomputes on title/slug/primary-category/
+// published-date/term change. Surfaces when an explicit canonical_url override
+// disagrees with the computed URL so the operator can clear it deliberately.
+const PERMALINK_PREVIEW_DEBOUNCE_MS = 300;
+const permalinkPreviewPath = ref('');
+const permalinkPreviewUrl = ref('');
+let permalinkPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function refreshPermalinkPreview() {
+  // The permalink engine only ever transforms posts (§2); pages keep their
+  // hand-authored slug, so the editor shows no computed preview for them.
+  if (form.value.type !== 'post') {
+    permalinkPreviewPath.value = '';
+    permalinkPreviewUrl.value = '';
+    return;
+  }
+  try {
+    const preview = await store.previewPermalink({
+      type: form.value.type,
+      title: form.value.title,
+      slug: form.value.slug,
+      primary_term_id: form.value.primary_term_id,
+      term_ids: selectedTermIds.value,
+      published_at: form.value.published_at,
+    });
+    permalinkPreviewPath.value = preview?.path ?? '';
+    permalinkPreviewUrl.value = preview?.url ?? '';
+  } catch {
+    // Keep the last known preview on a transient failure; never blocks editing.
+  }
+}
+
+function cancelPermalinkPreview() {
+  if (permalinkPreviewTimer) {
+    clearTimeout(permalinkPreviewTimer);
+    permalinkPreviewTimer = null;
+  }
+}
+
+function schedulePermalinkPreview() {
+  cancelPermalinkPreview();
+  if (form.value.type !== 'post') return;
+  permalinkPreviewTimer = setTimeout(refreshPermalinkPreview, PERMALINK_PREVIEW_DEBOUNCE_MS);
+}
+
+// Never let a pending debounce outlive the editor (production hygiene + keeps
+// the preview request from firing after the component is gone).
+onBeforeUnmount(cancelPermalinkPreview);
+
+watch(
+  () => [
+    form.value.type,
+    form.value.title,
+    form.value.slug,
+    form.value.primary_term_id,
+    form.value.published_at,
+    selectedTermIds.value.join(','),
+  ],
+  schedulePermalinkPreview,
+);
+
+// True when an explicit canonical_url is set AND differs from the computed
+// permalink URL — a signal the operator's override no longer matches the engine.
+const permalinkCanonicalMismatch = computed(() =>
+  !!form.value.canonical_url.trim() &&
+  !!permalinkPreviewUrl.value.trim() &&
+  form.value.canonical_url.trim() !== permalinkPreviewUrl.value.trim(),
+);
 
 // Tag selection — mirrors categories, but the picker allows inline create.
 const selectedTags = computed(() =>
@@ -1436,6 +1609,8 @@ const editorContext: CmsEditorContext<PostForm> = {
 };
 
 async function save() {
+  // A pending debounced permalink preview must never race the save request.
+  cancelPermalinkPreview();
   // content_html is the source of truth; content_json carries the same markup
   // as a single richtext block so back-compat consumers keep working.
   const contentJson = {
@@ -1452,6 +1627,7 @@ async function save() {
     source_css: form.value.source_css || null,
     type_data: Object.keys(form.value.type_data).length ? form.value.type_data : null,
     parent_id: isHierarchical.value ? form.value.parent_id : null,
+    primary_term_id: form.value.primary_term_id || null,
     status: form.value.status,
     published_at: form.value.status === 'scheduled' ? form.value.published_at : form.value.published_at,
     language: form.value.language,
@@ -1534,6 +1710,7 @@ onMounted(async () => {
         source_css: (post as Record<string, unknown>).source_css as string ?? '',
         type_data: (post.type_data as Record<string, unknown>) ?? {},
         parent_id: post.parent_id,
+        primary_term_id: post.primary_term_id ?? null,
         status: post.status,
         published_at: post.published_at,
         language: post.language,
@@ -1561,7 +1738,21 @@ onMounted(async () => {
   }
 });
 
-defineExpose({ form, selectedTermIds, save, activeContentTab, openPicker, onImageSelect, onGallerySelect, sidebarCollapsed, toggleEditorSidebar });
+defineExpose({
+  form,
+  selectedTermIds,
+  save,
+  activeContentTab,
+  openPicker,
+  onImageSelect,
+  onGallerySelect,
+  sidebarCollapsed,
+  toggleEditorSidebar,
+  refreshPermalinkPreview,
+  permalinkPreviewPath,
+  permalinkPreviewUrl,
+  permalinkCanonicalMismatch,
+});
 </script>
 
 <style scoped>
@@ -1591,6 +1782,13 @@ defineExpose({ form, selectedTermIds, save, activeContentTab, openPicker, onImag
   font-size: 0.95rem;
 }
 .slug-preview-link:hover { color: #1d4ed8; }
+
+/* Live permalink preview (S122): the computed full path + canonical URL. */
+.permalink-preview { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.5rem 0.75rem; }
+.permalink-preview__path { font-family: monospace; font-size: 0.85rem; color: #111827; word-break: break-all; }
+.permalink-preview__url { display: inline-block; margin-top: 4px; font-size: 0.78rem; color: #3b82f6; word-break: break-all; text-decoration: none; }
+.permalink-preview__url:hover { text-decoration: underline; }
+.permalink-preview__mismatch { margin: 6px 0 0; font-size: 0.78rem; color: #b45309; font-weight: 600; }
 .field-input--multi { min-height: 90px; }
 textarea.field-input { resize: vertical; }
 .field-error { font-size: 0.8rem; color: #dc2626; margin-top: 2px; }

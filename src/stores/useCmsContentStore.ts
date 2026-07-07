@@ -60,6 +60,10 @@ export interface CmsPost {
   content_html: string | null;
   type_data: Record<string, unknown> | null;
   parent_id: string | null;
+  /** Chosen primary category (S122) — feeds the permalink engine. */
+  primary_term_id?: string | null;
+  /** The post's own final path segment (S122) — feeds %slug%. */
+  slug_base?: string | null;
   status: string;
   /** Shareable preview token for the fe-user ?preview_token= URL. */
   preview_token?: string | null;
@@ -109,6 +113,24 @@ export interface PaginatedPosts {
   page: number;
   per_page: number;
   pages: number;
+}
+
+/** The computed permalink returned by the admin preview endpoint (S122). */
+export interface PermalinkPreview {
+  /** Full URL path the post would get (no leading/trailing slash). */
+  path: string;
+  /** Absolute canonical URL for that path. */
+  url: string;
+}
+
+/** Body accepted by the permalink-preview endpoint (S122). */
+export interface PermalinkPreviewInput {
+  type: string;
+  title: string;
+  slug: string;
+  primary_term_id: string | null;
+  term_ids: string[];
+  published_at: string | null;
 }
 
 /** A layout area declaration (subset surfaced by the layout list endpoint). */
@@ -299,6 +321,15 @@ export const useCmsContentStore = defineStore('cms-content', {
 
     async assignTerms(postId: string, termIds: string[]): Promise<void> {
       await api.put(`/admin/cms/posts/${postId}/terms`, { term_ids: termIds });
+    },
+
+    /**
+     * Compute the permalink a post WOULD get, without persisting (S122). Backs
+     * the editor's live preview and reuses the exact backend renderer, so the
+     * preview stays DRY with the real write-path engine.
+     */
+    async previewPermalink(data: PermalinkPreviewInput): Promise<PermalinkPreview> {
+      return await api.post<PermalinkPreview>('/admin/cms/posts/permalink-preview', data);
     },
 
     /** Replace the per-post widget overrides for the layout's page areas. */

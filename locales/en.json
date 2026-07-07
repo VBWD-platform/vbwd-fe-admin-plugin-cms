@@ -6,6 +6,13 @@
     "save": "Save",
     "excerpt": "Excerpt",
     "type": "Type",
+    "postArchive": {
+      "type": "Type",
+      "typeHint": "Fixed to 'post' — the archive lists every published post.",
+      "mode": "Mode",
+      "postsPerPage": "Posts per page",
+      "paginate": "Paginate"
+    },
     "typeFields": "Type-specific fields",
     "status": "Status",
     "status_draft": "Draft",
@@ -115,6 +122,8 @@
     "insertSelected": "Insert selected",
     "remove": "Remove",
     "searchable": "Searchable",
+    "showFeaturedHero": "Show featured hero (magazine header)",
+    "showFeaturedHeroHint": "Render the title and excerpt over the featured image (or a themed gradient band) above the post body.",
     "selectAll": "Select all",
     "selectAllEntries": "Select all entries",
     "selectAllOnPage": "Select all on page",
@@ -122,6 +131,9 @@
     "unsetCategory": "Remove category",
     "unsetLayout": "Remove layout",
     "updatedFrom": "Updated from",
-    "updatedTo": "Updated to"
+    "updatedTo": "Updated to",
+    "primaryCategory": "Primary category",
+    "permalinkPreview": "Permalink preview",
+    "permalinkCanonicalMismatch": "The canonical URL override differs from the computed permalink."
   }
 }
