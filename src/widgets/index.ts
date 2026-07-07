@@ -220,6 +220,9 @@ registerWidgetEditor({
     component_name: 'Search',
     placeholder: 'Search…',
     target_path: '',
+    scope: 'both',
+    quicksearch: false,
+    quicksearch_limit: 6,
   }),
 
   generalTabComponent: SearchEditorTab,
@@ -242,7 +245,7 @@ registerWidgetEditor({
 
   defaultConfig: () => ({
     component_name: 'SearchResults',
-    type: 'post',
+    scope: 'both',
     mode: 'titles',
     meta: [],
     per_page: 10,

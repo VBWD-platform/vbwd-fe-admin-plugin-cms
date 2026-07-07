@@ -1,13 +1,23 @@
 <template>
   <div class="field-group">
-    <label class="field-label">Type</label>
-    <input
-      :value="cfg.type"
+    <label class="field-label">Scope</label>
+    <select
+      data-test-id="search-results-scope"
+      :value="resolvedScope"
       class="field-input"
-      type="text"
-      placeholder="post"
-      @input="set('type', ($event.target as HTMLInputElement).value)"
+      @change="set('scope', ($event.target as HTMLSelectElement).value)"
     >
+      <option
+        v-for="scopeOption in SCOPE_OPTIONS"
+        :key="scopeOption"
+        :value="scopeOption"
+      >
+        {{ scopeOption }}
+      </option>
+    </select>
+    <p class="editor-pane__hint">
+      Which published content to list: pages, posts, or both.
+    </p>
   </div>
 
   <div class="field-group">
@@ -83,10 +93,26 @@
 import { computed } from 'vue';
 import { POST_LIST_MODE_OPTIONS, POST_META_FIELD_OPTIONS } from './postListOptions';
 
+const SCOPE_OPTIONS = ['pages', 'posts', 'both'] as const;
+const DEFAULT_SCOPE = 'both';
+const LEGACY_TYPE_TO_SCOPE: Record<string, string> = { page: 'pages', post: 'posts' };
+
 const props = defineProps<{ config: Record<string, unknown> }>();
 const emit = defineEmits<{ (e: 'update:config', val: Record<string, unknown>): void }>();
 
 const cfg = computed(() => props.config);
+
+// Backward-compat: derive scope from the legacy free-text `type` when no
+// explicit `scope` is stored (page→pages, post→posts, anything else→both).
+const resolvedScope = computed<string>(() => {
+  if (typeof props.config.scope === 'string') {
+    return props.config.scope;
+  }
+  if (typeof props.config.type === 'string') {
+    return LEGACY_TYPE_TO_SCOPE[props.config.type] ?? DEFAULT_SCOPE;
+  }
+  return DEFAULT_SCOPE;
+});
 
 const selectedMeta = computed<string[]>(() =>
   Array.isArray(props.config.meta) ? (props.config.meta as string[]) : [],
