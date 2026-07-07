@@ -1,22 +1,26 @@
 <template>
   <div class="field-group">
-    <label class="field-label">Scope</label>
-    <select
-      data-test-id="search-results-scope"
-      :value="resolvedScope"
-      class="field-input"
-      @change="set('scope', ($event.target as HTMLSelectElement).value)"
+    <label class="field-label">Post types</label>
+    <div
+      data-test-id="search-results-types"
+      class="checkbox-group"
     >
-      <option
-        v-for="scopeOption in SCOPE_OPTIONS"
-        :key="scopeOption"
-        :value="scopeOption"
+      <label
+        v-for="postType in postTypeOptions"
+        :key="postType.key"
+        class="field-label"
       >
-        {{ scopeOption }}
-      </option>
-    </select>
+        <input
+          :data-test-id="`search-results-type-${postType.key}`"
+          :checked="selectedTypes.includes(postType.key)"
+          type="checkbox"
+          @change="toggleType(postType.key, ($event.target as HTMLInputElement).checked)"
+        >
+        {{ postType.label }}
+      </label>
+    </div>
     <p class="editor-pane__hint">
-      Which published content to list: pages, posts, or both.
+      Which registered content types to list. Leave all unchecked to list every type.
     </p>
   </div>
 
@@ -90,36 +94,92 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { api } from '@/api';
 import { POST_LIST_MODE_OPTIONS, POST_META_FIELD_OPTIONS } from './postListOptions';
 
-const SCOPE_OPTIONS = ['pages', 'posts', 'both'] as const;
-const DEFAULT_SCOPE = 'both';
-const LEGACY_TYPE_TO_SCOPE: Record<string, string> = { page: 'pages', post: 'posts' };
+/** Narrow view of a registered post type — only what the picker needs. */
+interface PostTypeOption {
+  key: string;
+  label: string;
+}
+
+// Backward-compat: map the legacy `scope` / free-text `type` onto the derived
+// post-type set (pages→[page], posts→[post], both/anything else→[] = all types).
+const LEGACY_SCOPE_TO_TYPES: Record<string, string[]> = {
+  pages: ['page'],
+  posts: ['post'],
+  both: [],
+};
+const LEGACY_TYPE_TO_TYPES: Record<string, string[]> = {
+  page: ['page'],
+  post: ['post'],
+};
 
 const props = defineProps<{ config: Record<string, unknown> }>();
 const emit = defineEmits<{ (e: 'update:config', val: Record<string, unknown>): void }>();
 
 const cfg = computed(() => props.config);
+const postTypeOptions = ref<PostTypeOption[]>([]);
 
-// Backward-compat: derive scope from the legacy free-text `type` when no
-// explicit `scope` is stored (page→pages, post→posts, anything else→both).
-const resolvedScope = computed<string>(() => {
+// Selected post types, derived from the legacy `scope`/`type` when the modern
+// `config.types` array is absent so existing widgets keep their behaviour.
+const selectedTypes = computed<string[]>(() => {
+  if (Array.isArray(props.config.types)) {
+    return props.config.types as string[];
+  }
   if (typeof props.config.scope === 'string') {
-    return props.config.scope;
+    return LEGACY_SCOPE_TO_TYPES[props.config.scope] ?? [];
   }
   if (typeof props.config.type === 'string') {
-    return LEGACY_TYPE_TO_SCOPE[props.config.type] ?? DEFAULT_SCOPE;
+    return LEGACY_TYPE_TO_TYPES[props.config.type] ?? [];
   }
-  return DEFAULT_SCOPE;
+  return [];
 });
 
 const selectedMeta = computed<string[]>(() =>
   Array.isArray(props.config.meta) ? (props.config.meta as string[]) : [],
 );
 
+function unwrapPostTypes(response: unknown): PostTypeOption[] {
+  const list = Array.isArray(response)
+    ? response
+    : (response as Record<string, unknown> | null)?.post_types
+      ?? (response as Record<string, unknown> | null)?.items;
+  if (!Array.isArray(list)) return [];
+  return list.map((entry) => ({
+    key: String((entry as Record<string, unknown>).key),
+    label: String((entry as Record<string, unknown>).label ?? (entry as Record<string, unknown>).key),
+  }));
+}
+
+async function loadPostTypes() {
+  try {
+    const response = await api.get<unknown>('/admin/cms/post-types');
+    postTypeOptions.value = unwrapPostTypes(response);
+  } catch {
+    postTypeOptions.value = [];
+  }
+}
+
+// Every emit materialises the derived `types` and drops the legacy `scope`/
+// `type` keys, so saving migrates old widgets to the modern shape.
+function migratedConfig(): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...props.config, types: selectedTypes.value };
+  delete next.scope;
+  delete next.type;
+  return next;
+}
+
 function set(key: string, value: unknown) {
-  emit('update:config', { ...props.config, [key]: value });
+  emit('update:config', { ...migratedConfig(), [key]: value });
+}
+
+function toggleType(key: string, checked: boolean) {
+  const next = checked
+    ? [...selectedTypes.value, key]
+    : selectedTypes.value.filter((entry) => entry !== key);
+  emit('update:config', { ...migratedConfig(), types: next });
 }
 
 function toggleMeta(field: string, checked: boolean) {
@@ -128,4 +188,6 @@ function toggleMeta(field: string, checked: boolean) {
     : selectedMeta.value.filter((entry) => entry !== field);
   set('meta', next);
 }
+
+onMounted(loadPostTypes);
 </script>

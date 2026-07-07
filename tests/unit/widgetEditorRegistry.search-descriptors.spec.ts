@@ -106,46 +106,21 @@ describe('Search box (Search) descriptor — scope + quicksearch (S121 T1)', () 
   });
 });
 
-describe('Search results (SearchResults) descriptor — scope replaces type (S121 T1)', () => {
+describe('Search results (SearchResults) descriptor — post-type multi-select (S121 T1)', () => {
   const descriptor = () => getWidgetEditor('SearchResults')!;
 
-  it('defaultConfig() carries scope:both and no legacy type', () => {
+  it('defaultConfig() carries types:[post,page] and no legacy scope', () => {
     const config = descriptor().defaultConfig();
-    expect(config.scope).toBe('both');
-    expect(config.type).toBeUndefined();
+    expect(config.types).toEqual(['post', 'page']);
+    expect(config.scope).toBeUndefined();
   });
 
-  it('renders the scope select and keeps the category scope fields', () => {
+  it('renders the post-type multi-select container and keeps the category scope fields', () => {
     const wrapper = mount(descriptor().generalTabComponent as Component, {
       props: { config: descriptor().defaultConfig() },
     });
-    expect(wrapper.find('[data-test-id="search-results-scope"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test-id="search-results-types"]').exists()).toBe(true);
     expect(wrapper.find('input[placeholder="category"]').exists()).toBe(true);
     expect(wrapper.find('input[placeholder="news"]').exists()).toBe(true);
-  });
-
-  it('emits update:config with the chosen scope', async () => {
-    const wrapper = mount(descriptor().generalTabComponent as Component, {
-      props: { config: descriptor().defaultConfig() },
-    });
-    await wrapper.find('[data-test-id="search-results-scope"]').setValue('posts');
-    const events = wrapper.emitted('update:config')!;
-    expect((events[events.length - 1][0] as Record<string, unknown>).scope).toBe('posts');
-  });
-
-  it('derives scope from legacy type when scope is absent', () => {
-    const casesByType: Array<{ type: string; expected: string }> = [
-      { type: 'page', expected: 'pages' },
-      { type: 'post', expected: 'posts' },
-      { type: 'anything', expected: 'both' },
-    ];
-    for (const { type, expected } of casesByType) {
-      const wrapper = mount(descriptor().generalTabComponent as Component, {
-        props: { config: { component_name: 'SearchResults', type } },
-      });
-      const select = wrapper.find('[data-test-id="search-results-scope"]')
-        .element as HTMLSelectElement;
-      expect(select.value).toBe(expected);
-    }
   });
 });

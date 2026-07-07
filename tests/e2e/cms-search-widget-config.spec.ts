@@ -35,7 +35,7 @@ const LEGACY_RESULTS_SLUG = 's121-e2e-searchresults-legacy';
 const scopeSelect = '[data-test-id="search-scope"]';
 const quicksearchToggle = '[data-test-id="search-quicksearch"]';
 const quicksearchLimit = '[data-test-id="search-quicksearch-limit"]';
-const resultsScopeSelect = '[data-test-id="search-results-scope"]';
+const resultsPostCheckbox = '[data-test-id="search-results-type-post"]';
 
 let api: APIRequestContext;
 let token: string;
@@ -166,12 +166,12 @@ test('Search editor: scope select + quicksearch toggle + limit round-trip throug
   expect(widget.config.quicksearch_limit).toBe(8);
 });
 
-test('SearchResults editor: a widget stored with legacy `type` presents the derived scope', async ({ page }) => {
+test('SearchResults editor: a widget stored with legacy `type` pre-checks the derived post type', async ({ page }) => {
   await loginViaUI(page);
   await page.goto(`${BASE_URL}/admin/cms/widgets/${legacyResultsId}/edit`, { waitUntil: 'networkidle' });
 
-  const select = page.locator(resultsScopeSelect);
-  await expect(select).toBeVisible();
-  // Legacy `type: 'post'` (no explicit scope) must derive to `posts`.
-  await expect(select).toHaveValue('posts');
+  const postCheckbox = page.locator(resultsPostCheckbox);
+  await expect(postCheckbox).toBeVisible();
+  // Legacy `type: 'post'` (no explicit types) must derive to the `post` type.
+  await expect(postCheckbox).toBeChecked();
 });

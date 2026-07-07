@@ -245,12 +245,9 @@ registerWidgetEditor({
 
   defaultConfig: () => ({
     component_name: 'SearchResults',
-    scope: 'both',
-    mode: 'titles',
-    meta: [],
-    per_page: 10,
-    scope_term_type: '',
-    scope_term_slug: '',
+    types: ['post', 'page'],
+    mode: 'category',
+    per_page: 8,
   }),
 
   generalTabComponent: SearchResultsEditorTab,
