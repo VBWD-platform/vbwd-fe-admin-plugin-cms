@@ -18,6 +18,7 @@ import AddonCatalogEditorTab from './AddonCatalogEditorTab.vue';
 import TariffPlanCollectionEditorTab from './TariffPlanCollectionEditorTab.vue';
 import TokenBundleCollectionEditorTab from './TokenBundleCollectionEditorTab.vue';
 import CookieConsentEditorTab from './CookieConsentEditorTab.vue';
+import SuperHeaderEditorTab from './SuperHeaderEditorTab.vue';
 
 // ── CmsBreadcrumb ─────────────────────────────────────────────────────────────
 
@@ -524,5 +525,68 @@ registerWidgetEditor({
   </div>
 </div>`,
     };
+  },
+});
+
+// ── SuperHeader ───────────────────────────────────────────────────────────────
+// fe-user component SuperHeader.vue — a site header composed of a logo (links
+// home), a nav rendered from ANOTHER menu widget (referenced by slug), an
+// optional search box with quick-search, and an auth link (Login when
+// anonymous, Dashboard when logged in).
+
+registerWidgetEditor({
+  componentName: 'SuperHeader',
+
+  defaultConfig: () => ({
+    component_name: 'SuperHeader',
+    logo_image_url: '',
+    logo_text: 'VBWD',
+    logo_link: '/',
+    nav_widget_slug: 'header-nav',
+    show_search: true,
+    search_placeholder: 'Search…',
+    search_target_path: '/search',
+    search_scope: 'both',
+    quicksearch: true,
+    quicksearch_limit: 6,
+    show_auth_links: true,
+    login_label: 'Login',
+    login_path: '/login',
+    dashboard_label: 'Dashboard',
+    dashboard_path: '/dashboard',
+  }),
+
+  generalTabComponent: SuperHeaderEditorTab,
+
+  cssHint: 'Target <code>.cms-super-header</code>, <code>.cms-super-header__logo</code>, <code>.cms-super-header__nav</code>, <code>.cms-super-header__search</code>, <code>.cms-super-header__auth</code>.',
+
+  buildPreview(config) {
+    const logoImageUrl = (config.logo_image_url as string) || '';
+    const logoText = (config.logo_text as string) || 'VBWD';
+    const logoLink = (config.logo_link as string) || '/';
+    const logoHtml = logoImageUrl
+      ? `<img src="${logoImageUrl}" alt="${logoText}" style="height:32px;display:block">`
+      : `<span style="font-size:1.15rem;font-weight:700">${logoText}</span>`;
+
+    const searchHtml = config.show_search !== false
+      ? `<div class="cms-super-header__search" style="flex:1 1 auto;max-width:320px">
+    <input type="search" placeholder="${(config.search_placeholder as string) || 'Search…'}" style="width:100%;padding:.45rem .75rem;border:1px solid #cbd5e1;border-radius:6px;font-size:.9rem">
+  </div>`
+      : '';
+
+    const authHtml = config.show_auth_links !== false
+      ? `<a href="#" class="cms-super-header__auth" style="color:#3498db;font-weight:600;text-decoration:none">${(config.login_label as string) || 'Login'}</a>`
+      : '';
+
+    const html = `<header class="cms-super-header" style="display:flex;align-items:center;gap:1.25rem;padding:.75rem 1rem;border-bottom:1px solid #e5e7eb">
+  <a href="${logoLink}" class="cms-super-header__logo" style="text-decoration:none;color:inherit;flex:0 0 auto">${logoHtml}</a>
+  <nav class="cms-super-header__nav" style="display:flex;gap:1rem;flex:0 0 auto">
+    <a href="#" style="color:#374151;text-decoration:none">Nav item</a>
+    <a href="#" style="color:#374151;text-decoration:none">Nav item</a>
+  </nav>
+  ${searchHtml}
+  ${authHtml}
+</header>`;
+    return { html };
   },
 });
