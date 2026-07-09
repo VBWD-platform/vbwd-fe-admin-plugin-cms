@@ -124,6 +124,9 @@
     "searchable": "Searchable",
     "showFeaturedHero": "Show featured hero (magazine header)",
     "showFeaturedHeroHint": "Render the title and excerpt over the featured image (or a themed gradient band) above the post body.",
+    "pinBlogIndex": "Pin to blog index (front page)",
+    "pinBlogIndexHint": "Show this post first on the blog index, ahead of the normal date/order.",
+    "pinInCategory": "Pin in this category",
     "selectAll": "Select all",
     "selectAllEntries": "Select all entries",
     "selectAllOnPage": "Select all on page",
@@ -134,6 +137,11 @@
     "updatedTo": "Updated to",
     "primaryCategory": "Primary category",
     "permalinkPreview": "Permalink preview",
-    "permalinkCanonicalMismatch": "The canonical URL override differs from the computed permalink."
+    "permalinkCanonicalMismatch": "The canonical URL override differs from the computed permalink.",
+    "widget": {
+      "showCategories": "Show categories",
+      "showTags": "Show tags",
+      "showReadingTime": "Show reading time"
+    }
   }
 }

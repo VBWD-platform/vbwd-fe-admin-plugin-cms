@@ -91,10 +91,16 @@
       Paginate
     </label>
   </div>
+
+  <ArchiveDisplayToggles
+    :config="cfg"
+    @update:config="emit('update:config', $event)"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import ArchiveDisplayToggles from './ArchiveDisplayToggles.vue';
 import { POST_LIST_MODE_OPTIONS, POST_META_FIELD_OPTIONS } from './postListOptions';
 
 const props = defineProps<{ config: Record<string, unknown> }>();

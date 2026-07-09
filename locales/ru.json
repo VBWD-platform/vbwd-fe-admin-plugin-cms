@@ -126,6 +126,11 @@
     "unsetCategory": "Убрать категорию",
     "unsetLayout": "Убрать макет",
     "updatedFrom": "Обновлено с",
-    "updatedTo": "Обновлено по"
+    "updatedTo": "Обновлено по",
+    "widget": {
+      "showCategories": "Показывать категории",
+      "showTags": "Показывать теги",
+      "showReadingTime": "Показывать время чтения"
+    }
   }
 }

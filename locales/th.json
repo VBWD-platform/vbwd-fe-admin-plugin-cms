@@ -126,6 +126,11 @@
     "unsetCategory": "ยกเลิกหมวดหมู่",
     "unsetLayout": "ยกเลิกเลย์เอาต์",
     "updatedFrom": "อัปเดตตั้งแต่",
-    "updatedTo": "อัปเดตถึง"
+    "updatedTo": "อัปเดตถึง",
+    "widget": {
+      "showCategories": "แสดงหมวดหมู่",
+      "showTags": "แสดงแท็ก",
+      "showReadingTime": "แสดงเวลาอ่าน"
+    }
   }
 }

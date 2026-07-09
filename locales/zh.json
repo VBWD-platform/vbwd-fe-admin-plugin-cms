@@ -126,6 +126,11 @@
     "unsetCategory": "取消类别",
     "unsetLayout": "取消布局",
     "updatedFrom": "更新自",
-    "updatedTo": "更新至"
+    "updatedTo": "更新至",
+    "widget": {
+      "showCategories": "显示分类",
+      "showTags": "显示标签",
+      "showReadingTime": "显示阅读时间"
+    }
   }
 }

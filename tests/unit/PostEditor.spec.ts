@@ -528,8 +528,12 @@ describe('PostEditor.vue', () => {
     expect(payload).toHaveProperty('content_json');
     expect(payload).toHaveProperty('parent_id');
 
-    // terms assigned via the dedicated endpoint after save
-    expect(api.put).toHaveBeenCalledWith('/admin/cms/posts/new-id/terms', { term_ids: ['cat-1'] });
+    // terms assigned via the dedicated endpoint after save (with the
+    // per-category pin payload, empty when nothing is pinned — S-archives)
+    expect(api.put).toHaveBeenCalledWith('/admin/cms/posts/new-id/terms', {
+      term_ids: ['cat-1'],
+      pinned_term_ids: [],
+    });
   });
 
   // ── Content editing: Visual (WYSIWYG) is post-only; HTML/CSS/Preview always ─

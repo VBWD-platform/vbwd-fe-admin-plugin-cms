@@ -91,11 +91,17 @@
       @input="set('scope_term_slug', ($event.target as HTMLInputElement).value)"
     >
   </div>
+
+  <ArchiveDisplayToggles
+    :config="cfg"
+    @update:config="emit('update:config', $event)"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { api } from '@/api';
+import ArchiveDisplayToggles from './ArchiveDisplayToggles.vue';
 import { POST_LIST_MODE_OPTIONS, POST_META_FIELD_OPTIONS } from './postListOptions';
 
 /** Narrow view of a registered post type — only what the picker needs. */

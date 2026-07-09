@@ -84,7 +84,10 @@ describe('useCmsContentStore', () => {
     (api.put as any).mockResolvedValueOnce({ post_id: 'p1', term_ids: ['t1', 't2'] });
     const store = useCmsContentStore();
     await store.assignTerms('p1', ['t1', 't2']);
-    expect(api.put).toHaveBeenCalledWith('/admin/cms/posts/p1/terms', { term_ids: ['t1', 't2'] });
+    expect(api.put).toHaveBeenCalledWith('/admin/cms/posts/p1/terms', {
+      term_ids: ['t1', 't2'],
+      pinned_term_ids: [],
+    });
   });
 
   it('bulk-assigns a layout to many posts through the dedicated endpoint (S54)', async () => {

@@ -71,6 +71,9 @@ export interface CmsPost {
   language: string;
   translation_group_id: string | null;
   sort_order: number;
+  /** Global blog-index pin (S-archives) — floats the post to the top of the
+   *  /{posts_root} blog listing. */
+  pinned?: boolean;
   meta_title: string | null;
   meta_description: string | null;
   meta_keywords: string | null;
@@ -85,6 +88,9 @@ export interface CmsPost {
   layout_id?: string | null;
   style_id?: string | null;
   term_ids?: string[];
+  /** Term ids whose link is pinned (per-category pin, S-archives) — hydrates
+   *  the editor's per-category pin toggles on load. */
+  pinned_term_ids?: string[];
   /** Non-primary content areas, keyed by area name (admin GET post, S55). */
   content_blocks?: Record<string, {
     id?: string;
@@ -319,8 +325,18 @@ export const useCmsContentStore = defineStore('cms-content', {
       await api.put(`/admin/cms/posts/${id}`, { status });
     },
 
-    async assignTerms(postId: string, termIds: string[]): Promise<void> {
-      await api.put(`/admin/cms/posts/${postId}/terms`, { term_ids: termIds });
+    async assignTerms(
+      postId: string,
+      termIds: string[],
+      pinnedTermIds: string[] = [],
+    ): Promise<void> {
+      // ``pinned_term_ids`` (subset of term_ids) carries the per-category pins
+      // (cms_post_term.pinned). Always sent (authoritative) so the editor can
+      // clear a pin as well as set one (S-archives).
+      await api.put(`/admin/cms/posts/${postId}/terms`, {
+        term_ids: termIds,
+        pinned_term_ids: pinnedTermIds,
+      });
     },
 
     /**

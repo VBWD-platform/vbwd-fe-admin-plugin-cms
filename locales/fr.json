@@ -126,6 +126,11 @@
     "unsetCategory": "Retirer la catégorie",
     "unsetLayout": "Retirer la mise en page",
     "updatedFrom": "Mis à jour à partir du",
-    "updatedTo": "Mis à jour jusqu'au"
+    "updatedTo": "Mis à jour jusqu'au",
+    "widget": {
+      "showCategories": "Afficher les catégories",
+      "showTags": "Afficher les tags",
+      "showReadingTime": "Afficher le temps de lecture"
+    }
   }
 }

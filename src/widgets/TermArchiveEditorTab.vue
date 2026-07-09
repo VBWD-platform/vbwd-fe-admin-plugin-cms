@@ -9,7 +9,8 @@
       placeholder="post"
     >
     <p class="editor-pane__hint">
-      Fixed to <code>post</code> — the archive lists every published post.
+      Fixed to <code>post</code>. The term (category / tag) is read from the URL
+      — one widget renders every archive.
     </p>
   </div>
 
@@ -21,7 +22,7 @@
       @change="set('mode', ($event.target as HTMLSelectElement).value)"
     >
       <option
-        v-for="modeOption in POST_ARCHIVE_MODE_OPTIONS"
+        v-for="modeOption in TERM_ARCHIVE_MODE_OPTIONS"
         :key="modeOption"
         :value="modeOption"
       >
@@ -60,21 +61,18 @@
 
 <script setup lang="ts">
 /**
- * Editor tab for the "PostArchive" (blog index) widget. Mirrors the Category
- * editor but WITHOUT the term picker — the archive lists ALL published posts of
- * `type` (fixed to `post`). Exposes `mode` + `posts_per_page` (+ `paginate`) and
- * the shared card-display toggles, and writes them into the widget config, which
- * the fe-user PostArchive widget reads.
+ * Editor tab for the shared "TermArchive" widget. Mirrors the PostArchive editor
+ * (no term picker) — the term type + slug are read from the catch-all route
+ * (`/category/<slug>` / `/tag/<slug>`), so ONE widget on the ONE terms-archive
+ * layout renders every category AND tag archive. Exposes `mode` +
+ * `posts_per_page` (+ `paginate`) + the shared card-display toggles; the fe-user
+ * TermArchive widget reads them.
  */
 import { computed } from 'vue';
 import ArchiveDisplayToggles from './ArchiveDisplayToggles.vue';
 
-/**
- * Mode options for the blog-index archive. `category` (default) is the only mode
- * that renders the WordPress-archive card WITH a featured-image thumbnail; the
- * rest mirror the shared post-list modes and stay selectable.
- */
-const POST_ARCHIVE_MODE_OPTIONS = ['category', 'excerpt', 'titles', 'gallery', 'full'] as const;
+/** Mode options shared with the other post-list archives (DRY). */
+const TERM_ARCHIVE_MODE_OPTIONS = ['category', 'excerpt', 'titles', 'gallery', 'full'] as const;
 
 const props = defineProps<{ config: Record<string, unknown> }>();
 const emit = defineEmits<{ (e: 'update:config', val: Record<string, unknown>): void }>();

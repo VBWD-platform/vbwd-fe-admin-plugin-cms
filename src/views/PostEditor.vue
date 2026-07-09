@@ -579,6 +579,25 @@
             </p>
           </div>
 
+          <!-- Blog-index pin — posts only. When on, this post floats to the top
+               of the /{posts_root} blog listing (cms_post.pinned). -->
+          <div
+            v-if="form.type === 'post'"
+            class="field-group"
+          >
+            <label class="field-label">
+              <input
+                v-model="form.pinned"
+                type="checkbox"
+                data-testid="post-pin-blog-index"
+              >
+              &nbsp;{{ $t('cms.pinBlogIndex', 'Pin to blog index (front page)') }}
+            </label>
+            <p class="page-widgets-hint">
+              {{ $t('cms.pinBlogIndexHint', 'Show this post first on the blog index, ahead of the normal date/order.') }}
+            </p>
+          </div>
+
           <div class="field-group">
             <label class="field-label">{{ $t('cms.type') }}</label>
             <select
@@ -734,7 +753,17 @@
                 v-for="cat in selectedCategories"
                 :key="cat.id"
                 class="term-chip term-chip--category"
+                :class="{ 'term-chip--pinned': isCategoryPinned(cat.id) }"
               >
+                <button
+                  type="button"
+                  class="term-chip__pin"
+                  :class="{ 'term-chip__pin--active': isCategoryPinned(cat.id) }"
+                  :data-testid="`pin-category-${cat.id}`"
+                  :aria-pressed="isCategoryPinned(cat.id)"
+                  :title="$t('cms.pinInCategory', 'Pin in this category')"
+                  @click="toggleCategoryPin(cat.id)"
+                >★</button>
                 {{ cat.name }}
                 <button
                   type="button"
@@ -928,6 +957,9 @@ interface PostForm {
   language: string;
   translation_group_id: string | null;
   sort_order: number;
+  /** Global blog-index pin (S-archives) — cms_post.pinned. Floats the post to
+   *  the top of the /{posts_root} blog listing. */
+  pinned: boolean;
   meta_title: string;
   meta_description: string;
   meta_keywords: string;
@@ -969,6 +1001,7 @@ const form = ref<PostForm>({
   language: 'en',
   translation_group_id: null,
   sort_order: 0,
+  pinned: false,
   meta_title: '',
   meta_description: '',
   meta_keywords: '',
@@ -1118,6 +1151,10 @@ const showFeaturedHeroModel = computed<boolean>({
 // ── Term selection ──────────────────────────────────────────────────────
 const selectedCategoryIds = ref<string[]>([]);
 const selectedTagIds = ref<string[]>([]);
+// Per-category pins (S-archives) — the subset of assigned categories in which
+// this post is pinned (floats to the top of that category's archive). Rides the
+// terms save payload as ``pinned_term_ids``.
+const pinnedCategoryIds = ref<string[]>([]);
 const categoryTerms = ref<CmsTerm[]>([]);
 const tagTerms = ref<CmsTerm[]>([]);
 
@@ -1143,6 +1180,20 @@ function addCategory(id: string) {
 }
 function removeCategory(id: string) {
   selectedCategoryIds.value = selectedCategoryIds.value.filter((c) => c !== id);
+  // A removed category can no longer be pinned in.
+  pinnedCategoryIds.value = pinnedCategoryIds.value.filter((c) => c !== id);
+}
+
+// ── Per-category pin (S-archives) ─────────────────────────────────────────
+function isCategoryPinned(id: string): boolean {
+  return pinnedCategoryIds.value.includes(id);
+}
+function toggleCategoryPin(id: string) {
+  if (pinnedCategoryIds.value.includes(id)) {
+    pinnedCategoryIds.value = pinnedCategoryIds.value.filter((c) => c !== id);
+  } else {
+    pinnedCategoryIds.value = [...pinnedCategoryIds.value, id];
+  }
 }
 
 // ── Primary category (S122) ──────────────────────────────────────────────
@@ -1633,6 +1684,7 @@ async function save() {
     language: form.value.language,
     translation_group_id: form.value.translation_group_id || null,
     sort_order: form.value.sort_order,
+    pinned: form.value.pinned,
     meta_title: form.value.meta_title || null,
     meta_description: form.value.meta_description || null,
     meta_keywords: form.value.meta_keywords || null,
@@ -1659,7 +1711,12 @@ async function save() {
   const saved = await store.savePost(payload);
   const postId = saved?.id ?? id.value;
   if (postId) {
-    await store.assignTerms(postId, selectedTermIds.value);
+    // Only assigned categories can be pinned — filter defensively so a stale
+    // pin (e.g. a since-removed category) never rides the payload.
+    const pinnedTermIds = pinnedCategoryIds.value.filter((c) =>
+      selectedCategoryIds.value.includes(c),
+    );
+    await store.assignTerms(postId, selectedTermIds.value, pinnedTermIds);
     // Page-widget overrides are saved as a separate PUT, mirroring terms.
     await store.savePostWidgets(postId, form.value.page_widgets);
   }
@@ -1716,6 +1773,7 @@ onMounted(async () => {
         language: post.language,
         translation_group_id: post.translation_group_id,
         sort_order: post.sort_order,
+        pinned: post.pinned ?? false,
         meta_title: post.meta_title ?? '',
         meta_description: post.meta_description ?? '',
         meta_keywords: post.meta_keywords ?? '',
@@ -1734,6 +1792,8 @@ onMounted(async () => {
       previewToken.value = (post as Record<string, unknown>).preview_token as string ?? '';
       schemaJsonText.value = post.schema_json ? JSON.stringify(post.schema_json, null, 2) : '';
       selectedTermIds.value = post.term_ids ?? [];
+      // Re-hydrate the per-category pin toggles (S-archives).
+      pinnedCategoryIds.value = post.pinned_term_ids ?? [];
     }
   }
 });
@@ -1741,6 +1801,9 @@ onMounted(async () => {
 defineExpose({
   form,
   selectedTermIds,
+  pinnedCategoryIds,
+  isCategoryPinned,
+  toggleCategoryPin,
   save,
   activeContentTab,
   openPicker,
@@ -1825,6 +1888,10 @@ textarea.field-input { resize: vertical; }
 .term-chip--tag { background: #e5e7eb; color: #374151; }
 .term-chip__x { border: none; background: none; cursor: pointer; font-size: 1rem; line-height: 1; color: inherit; opacity: 0.6; padding: 0 2px; }
 .term-chip__x:hover { opacity: 1; }
+.term-chip__pin { border: none; background: none; cursor: pointer; font-size: 0.85rem; line-height: 1; color: inherit; opacity: 0.35; padding: 0 2px; }
+.term-chip__pin:hover { opacity: 0.75; }
+.term-chip__pin--active { opacity: 1; color: #b45309; }
+.term-chip--pinned { background: #fef3c7; color: #92400e; }
 .btn--sm { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
 .btn--danger { color: #b91c1c; border-color: #fca5a5; }
 

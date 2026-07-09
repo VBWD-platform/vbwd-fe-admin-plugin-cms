@@ -13,6 +13,7 @@ import SearchEditorTab from './SearchEditorTab.vue';
 import SearchResultsEditorTab from './SearchResultsEditorTab.vue';
 import CategoryEditorTab from './CategoryEditorTab.vue';
 import PostArchiveEditorTab from './PostArchiveEditorTab.vue';
+import TermArchiveEditorTab from './TermArchiveEditorTab.vue';
 import AddonCatalogEditorTab from './AddonCatalogEditorTab.vue';
 import TariffPlanCollectionEditorTab from './TariffPlanCollectionEditorTab.vue';
 import TokenBundleCollectionEditorTab from './TokenBundleCollectionEditorTab.vue';
@@ -249,6 +250,9 @@ registerWidgetEditor({
     types: ['post', 'page'],
     mode: 'category',
     per_page: 8,
+    show_categories: true,
+    show_tags: true,
+    show_article_size: true,
   }),
 
   generalTabComponent: SearchResultsEditorTab,
@@ -277,6 +281,9 @@ registerWidgetEditor({
     meta: [],
     limit: 10,
     paginate: false,
+    show_categories: true,
+    show_tags: true,
+    show_article_size: true,
   }),
 
   generalTabComponent: CategoryEditorTab,
@@ -303,6 +310,9 @@ registerWidgetEditor({
     mode: 'category',
     posts_per_page: 20,
     paginate: true,
+    show_categories: true,
+    show_tags: true,
+    show_article_size: true,
   }),
 
   generalTabComponent: PostArchiveEditorTab,
@@ -312,6 +322,37 @@ registerWidgetEditor({
   buildPreview() {
     return {
       html: '<div class="post-list post-list--excerpt"><article style="padding:.75rem 0;border-bottom:1px solid #eee"><h2 style="margin:0 0 .25rem">First post title</h2><p style="margin:0;color:#666">A short excerpt of the first post…</p></article><article style="padding:.75rem 0;border-bottom:1px solid #eee"><h2 style="margin:0 0 .25rem">Second post title</h2><p style="margin:0;color:#666">A short excerpt of the second post…</p></article></div>',
+    };
+  },
+});
+
+// ── TermArchive ───────────────────────────────────────────────────────────────
+// fe-user component TermArchiveWidget.vue — the shared, route-driven archive.
+// ONE instance on the ONE terms-archive layout renders every category AND tag
+// archive; the term type + slug come from the URL, not config. Like PostArchive
+// but term-scoped by the route (no term_slug in config).
+
+registerWidgetEditor({
+  componentName: 'TermArchive',
+
+  defaultConfig: () => ({
+    component_name: 'TermArchive',
+    type: 'post',
+    mode: 'category',
+    posts_per_page: 20,
+    paginate: true,
+    show_categories: true,
+    show_tags: true,
+    show_article_size: true,
+  }),
+
+  generalTabComponent: TermArchiveEditorTab,
+
+  cssHint: 'Target <code>.term-archive</code>, <code>.term-archive__heading</code>, <code>.post-list</code>, <code>.post-card</code>.',
+
+  buildPreview() {
+    return {
+      html: '<div class="term-archive"><h1 class="term-archive__heading" style="font-size:1.75rem;margin:0 0 1rem">Category name</h1><div class="post-list post-list--category"><article style="padding:.75rem 0;border-bottom:1px solid #eee"><h2 style="margin:0 0 .25rem">First post in this term</h2><p style="margin:0;color:#666">A short excerpt of the first post…</p></article><article style="padding:.75rem 0;border-bottom:1px solid #eee"><h2 style="margin:0 0 .25rem">Second post in this term</h2><p style="margin:0;color:#666">A short excerpt of the second post…</p></article></div></div>',
     };
   },
 });

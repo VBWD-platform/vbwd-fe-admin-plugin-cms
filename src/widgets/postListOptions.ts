@@ -8,4 +8,10 @@
  */
 export const POST_LIST_MODE_OPTIONS = ['titles', 'excerpt', 'full', 'gallery', 'video'] as const;
 
-export const POST_META_FIELD_OPTIONS = ['author', 'time_ago', 'tags', 'published_at', 'reading_time'] as const;
+/**
+ * Meta-row fields still driven by the free-form `meta` array. `tags` and
+ * `reading_time` were REMOVED here: on archive widgets they are now owned by the
+ * dedicated `show_tags` / `show_article_size` toggles (ArchiveDisplayToggles),
+ * the single source of truth — so they never render twice via two mechanisms.
+ */
+export const POST_META_FIELD_OPTIONS = ['author', 'time_ago', 'published_at'] as const;

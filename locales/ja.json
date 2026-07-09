@@ -126,6 +126,11 @@
     "unsetCategory": "カテゴリを解除",
     "unsetLayout": "レイアウトを解除",
     "updatedFrom": "更新日（開始）",
-    "updatedTo": "更新日（終了）"
+    "updatedTo": "更新日（終了）",
+    "widget": {
+      "showCategories": "カテゴリーを表示",
+      "showTags": "タグを表示",
+      "showReadingTime": "読了時間を表示"
+    }
   }
 }

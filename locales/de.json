@@ -126,6 +126,11 @@
     "unsetCategory": "Kategorie entfernen",
     "unsetLayout": "Layout entfernen",
     "updatedFrom": "Aktualisiert ab",
-    "updatedTo": "Aktualisiert bis"
+    "updatedTo": "Aktualisiert bis",
+    "widget": {
+      "showCategories": "Kategorien anzeigen",
+      "showTags": "Tags anzeigen",
+      "showReadingTime": "Lesezeit anzeigen"
+    }
   }
 }
