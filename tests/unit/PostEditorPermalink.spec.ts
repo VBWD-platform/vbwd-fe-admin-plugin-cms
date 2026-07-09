@@ -152,9 +152,14 @@ describe('PostEditor.vue — S122 permalink primary category + preview', () => {
     await (wrapper.vm as any).refreshPermalinkPreview();
     await flushPromises();
 
-    const call = (api.post as any).mock.calls.find(
+    // Take the LAST preview call, not the first: the form watcher debounces a
+    // preview on mount (type=post, empty title), and whether that timer fires
+    // before the setValue()s above is timing-dependent. The call we assert on is
+    // the one our explicit refreshPermalinkPreview() just made.
+    const previewCalls = (api.post as any).mock.calls.filter(
       (c: unknown[]) => c[0] === '/admin/cms/posts/permalink-preview',
     );
+    const call = previewCalls[previewCalls.length - 1];
     expect(call).toBeTruthy();
     expect(call[1]).toMatchObject({
       type: 'post', title: 'Hello', slug: 'hello', primary_term_id: 'cat-phone',
