@@ -100,23 +100,38 @@ const WIDGET_RENDERERS: Record<string, Component> = {
 
 ## The `vue-component` widget type
 
-`vue-component` is special: instead of storing HTML content, it stores a **config JSON**
-that names a Vue component and passes props to it. The component itself lives in a plugin
-(e.g. GHRM), not in the CMS.
+`vue-component` is special: instead of storing HTML content, it stores a **flat config JSON**
+whose `component_name` selects a registered Vue component and whose remaining keys are that
+component's settings. The component itself lives in a plugin (e.g. GHRM), not in the CMS.
 
 ### Config schema
 
+Example — the seeded `NativePricingPlans` card (the real config keys, matching
+`populate_cms.NATIVE_PRICING_CONFIG`):
+
 ```json
 {
-  "component": "NativePricingPlans",
-  "props": {
-    "category": "root",
-    "plan_count": 3,
-    "show_billing_toggle": true,
-    "default_billing_period": "monthly"
-  }
+  "component_name": "NativePricingPlans",
+  "mode": "category",
+  "category": "root",
+  "plan_slugs": [],
+  "theme": "teal",
+  "highlight_slug": "pro",
+  "features": [
+    "All core platform features",
+    "Unlimited projects",
+    "Priority email support",
+    "Cancel anytime"
+  ],
+  "css": ""
 }
 ```
+
+`mode` is `"category"` (plans by `category` slug) or `"plans"` (explicit `plan_slugs`).
+`theme` is one of `default`, `light`, `dark`, `teal`, `indigo`, `emerald` (any other value
+falls back to `default`). `heading`, `subtitle`, `cta_label`, `highlight_badge` and
+`image_url` are omitted above **on purpose** — left blank/absent they fall back to the
+built-in localised strings, keeping the card correct in every locale.
 
 ### Widget.config field
 
