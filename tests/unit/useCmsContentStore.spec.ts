@@ -110,6 +110,13 @@ describe('useCmsContentStore', () => {
     });
   });
 
+  it('bulk-copies posts through the copy endpoint', async () => {
+    (api.post as any).mockResolvedValueOnce({ items: [{ id: 'p1-copy' }], count: 1 });
+    const store = useCmsContentStore();
+    await store.bulkCopyPosts(['p1', 'p2']);
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/copy', { ids: ['p1', 'p2'] });
+  });
+
   it('bulk-unassigns categories through the dedicated endpoint', async () => {
     (api.post as any).mockResolvedValueOnce({ updated: 2 });
     const store = useCmsContentStore();

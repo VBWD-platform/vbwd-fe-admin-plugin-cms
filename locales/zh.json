@@ -113,6 +113,7 @@
     "clear": "清除",
     "create": "创建",
     "deleteSelected": "删除所选",
+    "makeACopy": "创建副本",
     "entries": "条目",
     "featuredImage": "特色图片",
     "insertGallery": "插入图库",

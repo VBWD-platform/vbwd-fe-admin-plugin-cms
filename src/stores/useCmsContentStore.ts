@@ -374,6 +374,11 @@ export const useCmsContentStore = defineStore('cms-content', {
     async bulkDeletePosts(ids: string[]): Promise<void> {
       await api.post('/admin/cms/posts/bulk', { ids });
     },
+    /** Duplicate the selected posts. Copies land inactive / draft; the caller
+     *  refreshes the list + clears the selection (mirrors bulkDeletePosts). */
+    async bulkCopyPosts(ids: string[]): Promise<void> {
+      await api.post('/admin/cms/posts/bulk/copy', { ids });
+    },
     async bulkSetStatus(ids: string[], status: string): Promise<void> {
       await api.post('/admin/cms/posts/bulk/status', { ids, status });
     },

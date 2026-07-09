@@ -218,6 +218,47 @@ describe('CmsContentList.vue (shared list)', () => {
     expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk', { ids: ['po-1'] });
   });
 
+  it('shows a bulk-copy button only once rows are selected', async () => {
+    const { wrapper } = await mountList('post', POSTS);
+    expect(wrapper.find('[data-testid="bulk-copy"]').exists()).toBe(false);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    expect(wrapper.find('[data-testid="bulk-copy"]').exists()).toBe(true);
+  });
+
+  it('hides the bulk-copy button for a user without cms.manage', async () => {
+    const auth = useAuthStore();
+    auth.$patch({ user: { id: '2', email: 'viewer@test.com', role: 'ADMIN', permissions: [] } });
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    expect(wrapper.find('[data-testid="bulk-copy"]').exists()).toBe(false);
+  });
+
+  it('bulk copy posts to the copy endpoint then clears + reloads', async () => {
+    (api.post as any).mockResolvedValue({ items: [], count: 1 });
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="row-select-po-1"]').setValue(true);
+    await flushPromises();
+    await wrapper.find('[data-testid="bulk-copy"]').trigger('click');
+    await flushPromises();
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/copy', { ids: ['po-1'] });
+    // selection cleared after the copy
+    expect(wrapper.find('[data-testid="bulk-bar"]').exists()).toBe(false);
+  });
+
+  it('bulk copy under the "all matching" scope copies the resolved (fetch-all) ids', async () => {
+    (api.post as any).mockResolvedValue({ items: [], count: 2 });
+    const { wrapper } = await mountList('post', POSTS);
+    await wrapper.find('[data-testid="select-all"]').trigger('click');
+    await flushPromises();
+    await wrapper.find('[data-testid="scope-all"]').trigger('click');
+    await flushPromises();
+    await wrapper.find('[data-testid="bulk-copy"]').trigger('click');
+    await flushPromises();
+    expect(api.post).toHaveBeenCalledWith('/admin/cms/posts/bulk/copy', { ids: ['po-1', 'po-2'] });
+  });
+
   it('select-all opens a scope menu; choosing this-page selects every row', async () => {
     const { wrapper } = await mountList('post', POSTS);
     await wrapper.find('[data-testid="select-all"]').trigger('click');

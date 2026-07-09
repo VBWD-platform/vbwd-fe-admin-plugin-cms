@@ -554,11 +554,13 @@ registerWidgetEditor({
     login_path: '/login',
     dashboard_label: 'Dashboard',
     dashboard_path: '/dashboard',
+    stickable: false,
+    stickable_offset_px: 160,
   }),
 
   generalTabComponent: SuperHeaderEditorTab,
 
-  cssHint: 'Target <code>.cms-super-header</code>, <code>.cms-super-header__logo</code>, <code>.cms-super-header__nav</code>, <code>.cms-super-header__search</code>, <code>.cms-super-header__auth</code>.',
+  cssHint: 'Target <code>.cms-super-header</code>, <code>.cms-super-header__logo</code>, <code>.cms-super-header__nav</code>, <code>.cms-super-header__search</code>, <code>.cms-super-header__auth</code>. When sticky, the header also gets <code>.cms-super-header--stuck</code>.',
 
   buildPreview(config) {
     const logoImageUrl = (config.logo_image_url as string) || '';

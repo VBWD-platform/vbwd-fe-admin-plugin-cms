@@ -56,6 +56,14 @@
       </button>
       <button
         v-if="canManage"
+        class="btn"
+        data-testid="bulk-copy"
+        @click="bulkCopy"
+      >
+        {{ $t('cms.makeACopy', 'Make a copy') }}
+      </button>
+      <button
+        v-if="canManage"
         class="btn btn--danger"
         @click="bulkDelete"
       >
@@ -244,6 +252,11 @@ async function bulkDelete() {
 async function bulkSetActive(active: boolean) {
   if (!store.selectedLayoutIds.size) return;
   await store.bulkSetLayoutActive([...store.selectedLayoutIds], active);
+}
+
+async function bulkCopy() {
+  if (!store.selectedLayoutIds.size) return;
+  await store.bulkCopyLayouts([...store.selectedLayoutIds]);
 }
 
 function fmtDate(s: string) {

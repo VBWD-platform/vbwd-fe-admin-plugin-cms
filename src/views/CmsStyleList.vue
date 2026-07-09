@@ -40,6 +40,14 @@
       <span>{{ store.selectedStyleIds.size }} selected</span>
       <button
         v-if="canManage"
+        class="btn"
+        data-testid="bulk-copy"
+        @click="bulkCopy"
+      >
+        {{ $t('cms.makeACopy', 'Make a copy') }}
+      </button>
+      <button
+        v-if="canManage"
         class="btn btn--danger"
         @click="bulkDelete"
       >
@@ -218,6 +226,11 @@ function toggleOne(id: string) {
 async function bulkDelete() {
   if (!confirm(`Delete ${store.selectedStyleIds.size} style(s)?`)) return;
   await store.bulkDeleteStyles([...store.selectedStyleIds]);
+}
+
+async function bulkCopy() {
+  if (!store.selectedStyleIds.size) return;
+  await store.bulkCopyStyles([...store.selectedStyleIds]);
 }
 
 function fmtDate(s: string) {

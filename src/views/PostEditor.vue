@@ -1135,6 +1135,15 @@ const postUrl = computed(() =>
   buildPostUrl(form.value.slug, form.value.status, previewToken.value),
 );
 
+// After the server persists a post it may recompute the slug (S122 permalink
+// engine) and issues the preview_token. Re-hydrate both from the server truth
+// so the Preview/View link and the slug field are correct without a reload.
+// Shared by the initial load (onMounted) and the post-save path (DRY).
+function hydrateServerIdentity(post: CmsPost) {
+  form.value.slug = post.slug;
+  previewToken.value = post.preview_token ?? '';
+}
+
 // type_data is kept as a plain object; this proxy keeps v-model bindings stable.
 const typeDataModel = computed<Record<string, unknown>>(() => form.value.type_data);
 
@@ -1709,6 +1718,12 @@ async function save() {
   if (id.value) payload.id = id.value;
 
   const saved = await store.savePost(payload);
+  if (saved) {
+    // The server may recompute the slug (permalink engine) and mints the
+    // preview_token on first save — hydrate both so the Preview link works
+    // immediately. Applies to updates too: a title change can move the slug.
+    hydrateServerIdentity(saved);
+  }
   const postId = saved?.id ?? id.value;
   if (postId) {
     // Only assigned categories can be pinned — filter defensively so a stale
@@ -1789,7 +1804,7 @@ onMounted(async () => {
         content_blocks: loadContentBlocks(post.content_blocks),
         page_widgets: loadPageWidgets(post.page_assignments),
       };
-      previewToken.value = (post as Record<string, unknown>).preview_token as string ?? '';
+      hydrateServerIdentity(post);
       schemaJsonText.value = post.schema_json ? JSON.stringify(post.schema_json, null, 2) : '';
       selectedTermIds.value = post.term_ids ?? [];
       // Re-hydrate the per-category pin toggles (S-archives).

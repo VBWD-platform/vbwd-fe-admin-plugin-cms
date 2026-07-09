@@ -4,15 +4,45 @@
     Logo
   </h4>
 
+  <!-- Logo image — picked from the CMS Image Library -->
   <div class="field-group">
-    <label class="field-label">Logo image URL</label>
-    <input
-      data-test-id="super-header-logo-image-url"
-      :value="cfg.logo_image_url"
-      class="field-input"
-      type="text"
-      @input="set('logo_image_url', ($event.target as HTMLInputElement).value)"
+    <label class="field-label">Logo image</label>
+    <div
+      v-if="logoImageUrl"
+      class="np-image"
     >
+      <img
+        data-test-id="super-header-logo-thumb"
+        :src="logoImageUrl"
+        alt=""
+        class="np-image__thumb"
+      >
+      <button
+        data-test-id="super-header-logo-change"
+        type="button"
+        class="np-btn"
+        @click="showImagePicker = true"
+      >
+        Change
+      </button>
+      <button
+        data-test-id="super-header-logo-remove"
+        type="button"
+        class="np-btn np-btn--danger"
+        @click="set('logo_image_url', '')"
+      >
+        Remove
+      </button>
+    </div>
+    <button
+      v-else
+      data-test-id="super-header-logo-select"
+      type="button"
+      class="np-btn"
+      @click="showImagePicker = true"
+    >
+      Select image
+    </button>
     <p class="editor-pane__hint">
       leave empty to show the text logo
     </p>
@@ -219,21 +249,74 @@
       >
     </div>
   </template>
+
+  <!-- ── Behaviour ────────────────────────────────────────────────────────── -->
+  <h4 class="super-header-section">
+    Behaviour
+  </h4>
+
+  <div class="field-group">
+    <label class="field-label">
+      <input
+        data-test-id="super-header-stickable"
+        :checked="stickableEnabled"
+        type="checkbox"
+        @change="set('stickable', ($event.target as HTMLInputElement).checked)"
+      >
+      Sticky header
+    </label>
+    <p class="editor-pane__hint">
+      Pin the header to the top of the viewport after the visitor scrolls down.
+    </p>
+  </div>
+
+  <div
+    v-if="stickableEnabled"
+    class="field-group"
+  >
+    <label class="field-label">Stick after (px)</label>
+    <input
+      data-test-id="super-header-stickable-offset"
+      :value="stickableOffsetPx"
+      class="field-input field-input--sm"
+      type="number"
+      min="0"
+      @input="setStickableOffsetPx(($event.target as HTMLInputElement).value)"
+    >
+    <p class="editor-pane__hint">
+      Scroll distance before the header pins. Default 160.
+    </p>
+  </div>
+
+  <!-- CMS Image Library picker -->
+  <CmsImagePicker
+    v-if="showImagePicker"
+    @select="onImageSelect"
+    @close="showImagePicker = false"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
+import CmsImagePicker from '../components/CmsImagePicker.vue';
 
 const SEARCH_SCOPE_OPTIONS = ['pages', 'posts', 'both'] as const;
 const DEFAULT_SEARCH_SCOPE = 'both';
 const DEFAULT_QUICKSEARCH_LIMIT = 6;
 const QUICKSEARCH_LIMIT_MIN = 1;
 const QUICKSEARCH_LIMIT_MAX = 20;
+const DEFAULT_STICKABLE_OFFSET_PX = 160;
+const STICKABLE_OFFSET_MIN = 0;
 
 const props = defineProps<{ config: Record<string, unknown> }>();
 const emit = defineEmits<{ (e: 'update:config', val: Record<string, unknown>): void }>();
 
 const cfg = computed(() => props.config);
+
+const logoImageUrl = computed<string>(() =>
+  typeof props.config.logo_image_url === 'string' ? props.config.logo_image_url : '',
+);
+const showImagePicker = ref(false);
 
 const showSearch = computed<boolean>(() => props.config.show_search === true);
 const showAuthLinks = computed<boolean>(() => props.config.show_auth_links === true);
@@ -250,8 +333,21 @@ const quicksearchLimit = computed<number>(() =>
     : DEFAULT_QUICKSEARCH_LIMIT,
 );
 
+const stickableEnabled = computed<boolean>(() => props.config.stickable === true);
+
+const stickableOffsetPx = computed<number>(() =>
+  typeof props.config.stickable_offset_px === 'number'
+    ? props.config.stickable_offset_px
+    : DEFAULT_STICKABLE_OFFSET_PX,
+);
+
 function set(key: string, value: unknown) {
   emit('update:config', { ...props.config, [key]: value });
+}
+
+function onImageSelect(url: string) {
+  set('logo_image_url', url);
+  showImagePicker.value = false;
 }
 
 function setQuicksearchLimit(rawValue: string) {
@@ -261,6 +357,15 @@ function setQuicksearchLimit(rawValue: string) {
     Math.max(QUICKSEARCH_LIMIT_MIN, Number.isFinite(parsed) ? parsed : DEFAULT_QUICKSEARCH_LIMIT),
   );
   set('quicksearch_limit', clamped);
+}
+
+function setStickableOffsetPx(rawValue: string) {
+  const parsed = rawValue.trim() === '' ? Number.NaN : Number(rawValue);
+  const clamped = Math.max(
+    STICKABLE_OFFSET_MIN,
+    Number.isFinite(parsed) ? parsed : DEFAULT_STICKABLE_OFFSET_PX,
+  );
+  set('stickable_offset_px', clamped);
 }
 </script>
 
@@ -275,5 +380,34 @@ function setQuicksearchLimit(rawValue: string) {
 }
 .super-header-section:first-child {
   margin-top: 0;
+}
+.np-image {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.np-image__thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 4px;
+}
+.np-btn {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.np-btn:hover {
+  background: #f3f4f6;
+}
+.np-btn--danger {
+  color: #b91c1c;
+  border-color: #fca5a5;
 }
 </style>

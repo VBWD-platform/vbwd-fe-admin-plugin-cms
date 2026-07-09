@@ -1,8 +1,22 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import type { Component } from 'vue';
 import { getWidgetEditor } from '../../src/widgets/widgetEditorRegistry';
 import '../../src/widgets/index';
+
+// CmsImagePicker hits a Pinia store + axios; stub it with a minimal component
+// that lets the test drive its `select` emission.
+vi.mock('../../src/components/CmsImagePicker.vue', () => ({
+  default: {
+    name: 'CmsImagePicker',
+    emits: ['select', 'select-many', 'close'],
+    template:
+      '<div data-test-id="image-picker-stub">' +
+      '<button data-test-id="picker-emit-select" ' +
+      "@click=\"$emit('select', '/uploads/picked.png', 'alt text')\">emit</button>" +
+      '</div>',
+  },
+}));
 
 const EXPECTED_KEYS = [
   'component_name',
@@ -21,6 +35,8 @@ const EXPECTED_KEYS = [
   'login_path',
   'dashboard_label',
   'dashboard_path',
+  'stickable',
+  'stickable_offset_px',
 ];
 
 describe('SuperHeader widget editor descriptor', () => {
@@ -56,6 +72,8 @@ describe('SuperHeader widget editor descriptor', () => {
     expect(config.login_path).toBe('/login');
     expect(config.dashboard_label).toBe('Dashboard');
     expect(config.dashboard_path).toBe('/dashboard');
+    expect(config.stickable).toBe(false);
+    expect(config.stickable_offset_px).toBe(160);
   });
 
   it('buildPreview shows the logo text, search placeholder and login label by default', () => {
@@ -111,5 +129,101 @@ describe('SuperHeaderEditorTab component', () => {
     await wrapper.find('[data-test-id="super-header-search-scope"]').setValue('posts');
     const events = wrapper.emitted('update:config')!;
     expect((events[events.length - 1][0] as Record<string, unknown>).search_scope).toBe('posts');
+  });
+});
+
+describe('SuperHeaderEditorTab logo image picker', () => {
+  const descriptor = () => getWidgetEditor('SuperHeader')!;
+
+  function mountWith(logoImageUrl: string) {
+    return mount(descriptor().generalTabComponent as Component, {
+      props: { config: { ...descriptor().defaultConfig(), logo_image_url: logoImageUrl } },
+    });
+  }
+
+  it('replaces the free-text URL input with the picker workflow', () => {
+    const wrapper = mountWith('');
+    expect(wrapper.find('[data-test-id="super-header-logo-image-url"]').exists()).toBe(false);
+  });
+
+  it('shows the Select image button and no thumbnail/picker when empty', () => {
+    const wrapper = mountWith('');
+    expect(wrapper.find('[data-test-id="super-header-logo-select"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test-id="super-header-logo-thumb"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test-id="image-picker-stub"]').exists()).toBe(false);
+  });
+
+  it('mounts the picker when Select image is clicked', async () => {
+    const wrapper = mountWith('');
+    await wrapper.find('[data-test-id="super-header-logo-select"]').trigger('click');
+    expect(wrapper.find('[data-test-id="image-picker-stub"]').exists()).toBe(true);
+  });
+
+  it('stores the picked url on select and unmounts the picker', async () => {
+    const wrapper = mountWith('');
+    await wrapper.find('[data-test-id="super-header-logo-select"]').trigger('click');
+    await wrapper.find('[data-test-id="picker-emit-select"]').trigger('click');
+
+    const events = wrapper.emitted('update:config')!;
+    const emitted = events[events.length - 1][0] as Record<string, unknown>;
+    expect(emitted.logo_image_url).toBe('/uploads/picked.png');
+    expect(wrapper.find('[data-test-id="image-picker-stub"]').exists()).toBe(false);
+  });
+
+  it('shows the thumbnail, Change and Remove buttons when a url is set', () => {
+    const wrapper = mountWith('/uploads/logo.png');
+    const thumb = wrapper.find('[data-test-id="super-header-logo-thumb"]');
+    expect(thumb.exists()).toBe(true);
+    expect(thumb.attributes('src')).toBe('/uploads/logo.png');
+    expect(wrapper.find('[data-test-id="super-header-logo-change"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test-id="super-header-logo-remove"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test-id="super-header-logo-select"]').exists()).toBe(false);
+  });
+
+  it('clears the url when Remove is clicked', async () => {
+    const wrapper = mountWith('/uploads/logo.png');
+    await wrapper.find('[data-test-id="super-header-logo-remove"]').trigger('click');
+    const events = wrapper.emitted('update:config')!;
+    const emitted = events[events.length - 1][0] as Record<string, unknown>;
+    expect(emitted.logo_image_url).toBe('');
+  });
+});
+
+describe('SuperHeaderEditorTab behaviour (stickable) section', () => {
+  const descriptor = () => getWidgetEditor('SuperHeader')!;
+
+  function mountWith(overrides: Record<string, unknown> = {}) {
+    return mount(descriptor().generalTabComponent as Component, {
+      props: { config: { ...descriptor().defaultConfig(), ...overrides } },
+    });
+  }
+
+  it('hides the offset field when stickable is false', () => {
+    const wrapper = mountWith({ stickable: false });
+    expect(wrapper.find('[data-test-id="super-header-stickable"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test-id="super-header-stickable-offset"]').exists()).toBe(false);
+  });
+
+  it('emits stickable=true when the Sticky header checkbox is ticked', async () => {
+    const wrapper = mountWith({ stickable: false });
+    await wrapper.find('[data-test-id="super-header-stickable"]').setValue(true);
+    const events = wrapper.emitted('update:config')!;
+    expect((events[events.length - 1][0] as Record<string, unknown>).stickable).toBe(true);
+  });
+
+  it('renders the offset field and emits the parsed number when stickable is on', async () => {
+    const wrapper = mountWith({ stickable: true });
+    const offset = wrapper.find('[data-test-id="super-header-stickable-offset"]');
+    expect(offset.exists()).toBe(true);
+    await offset.setValue('240');
+    const events = wrapper.emitted('update:config')!;
+    expect((events[events.length - 1][0] as Record<string, unknown>).stickable_offset_px).toBe(240);
+  });
+
+  it('falls back to 160 when the offset input is non-numeric / empty', async () => {
+    const wrapper = mountWith({ stickable: true });
+    await wrapper.find('[data-test-id="super-header-stickable-offset"]').setValue('');
+    const events = wrapper.emitted('update:config')!;
+    expect((events[events.length - 1][0] as Record<string, unknown>).stickable_offset_px).toBe(160);
   });
 });

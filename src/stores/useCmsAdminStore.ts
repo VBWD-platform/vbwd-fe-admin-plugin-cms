@@ -271,6 +271,14 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       await this.fetchLayouts();
     },
 
+    // Duplicate the selected layouts. Copies land inactive; clears the
+    // selection and refetches (mirrors bulkDeleteLayouts).
+    async bulkCopyLayouts(ids: string[]) {
+      await api.post<any>('/admin/cms/layouts/bulk/copy', { ids });
+      this.selectedLayoutIds.clear();
+      await this.fetchLayouts();
+    },
+
     /** Every id matching the current filter for an entity list ("totally all"
      *  scope). Pages through the list (server caps per_page at 100). */
     async fetchAllIds(entity: string, params: Record<string, unknown> = {}): Promise<string[]> {
@@ -359,6 +367,14 @@ export const useCmsAdminStore = defineStore('cms-admin', {
       await this.fetchWidgets();
     },
 
+    // Duplicate the selected widgets. Copies land inactive; clears the
+    // selection and refetches (mirrors bulkDeleteWidgets).
+    async bulkCopyWidgets(ids: string[]) {
+      await api.post<any>('/admin/cms/widgets/bulk/copy', { ids });
+      this.selectedWidgetIds.clear();
+      await this.fetchWidgets();
+    },
+
     // ── Styles ────────────────────────────────────────────────────────────────
 
     async fetchStyles(params: Record<string, unknown> = {}) {
@@ -409,6 +425,14 @@ export const useCmsAdminStore = defineStore('cms-admin', {
 
     async bulkDeleteStyles(ids: string[]) {
       await api.post<any>('/admin/cms/styles/bulk', { ids });
+      this.selectedStyleIds.clear();
+      await this.fetchStyles();
+    },
+
+    // Duplicate the selected styles. Copies land inactive; clears the
+    // selection and refetches (mirrors bulkDeleteStyles).
+    async bulkCopyStyles(ids: string[]) {
+      await api.post<any>('/admin/cms/styles/bulk/copy', { ids });
       this.selectedStyleIds.clear();
       await this.fetchStyles();
     },

@@ -214,6 +214,15 @@
           v-if="canManage"
           type="button"
           class="btn"
+          data-testid="bulk-copy"
+          @click="bulkCopy"
+        >
+          {{ $t('cms.makeACopy', 'Make a copy') }}
+        </button>
+        <button
+          v-if="canManage"
+          type="button"
+          class="btn"
           data-testid="bulk-searchable"
           @click="bulkSearchable(true)"
         >
@@ -560,6 +569,14 @@ async function bulkDelete() {
   load();
 }
 
+async function bulkCopy() {
+  const ids = await bulk.resolveIds();
+  if (!ids.length) return;
+  await store.bulkCopyPosts(ids);
+  bulk.clear();
+  load();
+}
+
 async function bulkStatus(status: string) {
   const ids = await bulk.resolveIds();
   if (!ids.length) return;
@@ -628,7 +645,7 @@ onMounted(async () => {
 });
 
 defineExpose({
-  bulkDelete, bulkStatus, bulkSearchable,
+  bulkDelete, bulkCopy, bulkStatus, bulkSearchable,
   onBulkAssignCategory, onBulkAssignLayout, sort, load, bulk,
 });
 </script>

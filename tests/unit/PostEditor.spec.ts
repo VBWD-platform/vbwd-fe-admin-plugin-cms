@@ -715,6 +715,38 @@ describe('PostEditor.vue', () => {
     expect(href).not.toContain('preview_token');
   });
 
+  it('hydrates the preview URL (token + server slug) after saving a new draft', async () => {
+    // The server (S122 permalink engine) computes the real slug and issues a
+    // preview_token in the save response. After a first save the editor must
+    // hydrate from that response so the Preview link carries ?preview_token=
+    // and the server-computed slug — without waiting for a reload.
+    (api.post as any).mockResolvedValue({
+      id: 'p-new',
+      type: 'post',
+      slug: 'blog/2026/uncategorized/new-flow-post',
+      title: 'New Flow Post',
+      status: 'draft',
+      preview_token: 'tok-new',
+    });
+    (api.put as any).mockResolvedValue({});
+    const { wrapper } = await mountEditor('cms-post-new', {}, { type: 'post' });
+    await wrapper.find('[data-testid="post-title"]').setValue('New Flow Post');
+    await wrapper.find('[data-testid="post-slug"]').setValue('new-flow-post');
+    await wrapper.find('[data-testid="post-status"]').setValue('draft');
+    await flushPromises();
+
+    await (wrapper.vm as any).save();
+    await flushPromises();
+
+    // The slug field's preview link mirrors the postUrl computed and does not
+    // depend on isNew — assert the token + server-computed slug landed on it.
+    const previewHref = wrapper.find('[data-testid="slug-preview-link"]').attributes('href');
+    expect(previewHref).toContain('/blog/2026/uncategorized/new-flow-post');
+    expect(previewHref).toContain('?preview_token=tok-new');
+    // The editable slug field now reflects the server-computed slug.
+    expect((wrapper.vm as any).form.slug).toBe('blog/2026/uncategorized/new-flow-post');
+  });
+
   it('includes published_at in the payload when scheduling', async () => {
     (api.post as any).mockResolvedValue({ id: 'sched-id', type: 'post', slug: 'launch', title: 'Launch' });
     const { wrapper } = await mountEditor();
