@@ -252,10 +252,10 @@
 
           <!-- Preview -->
           <div v-show="activeContentTab === 'Preview'">
-            <iframe
+            <HtmlPreviewFrame
               ref="postPreviewFrame"
-              class="post-preview-iframe"
-              sandbox="allow-same-origin allow-scripts"
+              :content-html="form.content_html"
+              :source-css="form.source_css"
             />
           </div>
         </div>
@@ -362,138 +362,15 @@
             {{ $t('cms.seo') }}
           </summary>
           <div class="seo-tab">
-            <!-- Live SERP preview -->
-            <div
-              class="serp-preview"
-              data-testid="serp-preview"
-            >
-              <div class="serp-preview__title">
-                {{ serpTitle }}
-              </div>
-              <div class="serp-preview__url">
-                {{ serpUrl }}
-              </div>
-              <div class="serp-preview__desc">
-                {{ serpDescription }}
-              </div>
-              <div class="serp-preview__counts">
-                <span :class="{ 'serp-count--warn': titleTooLong }">
-                  {{ $t('cms.titleChars') }}: {{ serpTitle.length }} / {{ SERP_TITLE_MAX }}
-                </span>
-                <span
-                  v-if="titleTooLong"
-                  class="serp-warn"
-                  data-testid="serp-title-warning"
-                >{{ $t('cms.titleTooLong') }}</span>
-                <span :class="{ 'serp-count--warn': descTooLong }">
-                  {{ $t('cms.descChars') }}: {{ serpDescription.length }} / {{ SERP_DESC_MAX }}
-                </span>
-                <span
-                  v-if="descTooLong"
-                  class="serp-warn"
-                  data-testid="serp-desc-warning"
-                >{{ $t('cms.descTooLong') }}</span>
-              </div>
-            </div>
-
-            <div class="field-group">
-              <label class="field-label">{{ $t('cms.metaTitle') }}</label>
-              <input
-                v-model="form.meta_title"
-                class="field-input"
-                type="text"
-                data-testid="seo-meta-title"
-              >
-            </div>
-            <div class="field-group">
-              <label class="field-label">{{ $t('cms.metaDescription') }}</label>
-              <textarea
-                v-model="form.meta_description"
-                class="field-input"
-                rows="3"
-                data-testid="seo-meta-description"
-              />
-            </div>
-            <div class="field-group">
-              <label class="field-label">{{ $t('cms.metaKeywords') }}</label>
-              <input
-                v-model="form.meta_keywords"
-                class="field-input"
-                type="text"
-              >
-            </div>
-            <div class="field-group">
-              <label class="field-label">{{ $t('cms.ogTitle') }}</label>
-              <input
-                v-model="form.og_title"
-                class="field-input"
-                type="text"
-              >
-            </div>
-            <div class="field-group">
-              <label class="field-label">{{ $t('cms.ogDescription') }}</label>
-              <textarea
-                v-model="form.og_description"
-                class="field-input"
-                rows="3"
-              />
-            </div>
-            <div class="field-group">
-              <label class="field-label">{{ $t('cms.ogImage') }}</label>
-              <input
-                v-model="form.og_image_url"
-                class="field-input"
-                type="text"
-              >
-            </div>
-            <div class="field-group">
-              <label class="field-label">{{ $t('cms.canonicalUrl') }}</label>
-              <input
-                v-model="form.canonical_url"
-                class="field-input"
-                type="text"
-              >
-            </div>
-            <div class="field-group">
-              <label class="field-label">{{ $t('cms.robots') }}</label>
-              <input
-                v-model="form.robots"
-                class="field-input"
-                type="text"
-                placeholder="index,follow"
-              >
-            </div>
-            <div class="field-group">
-              <label class="field-label">{{ $t('cms.schemaJson') }}</label>
-              <textarea
-                v-model="schemaJsonText"
-                class="field-input field-input--mono"
-                rows="4"
-                @blur="parseSchemaJson"
-              />
-              <span
-                v-if="schemaError"
-                class="field-error"
-              >{{ schemaError }}</span>
-            </div>
-
-            <!-- Exclude from search engines -->
-            <div class="field-group">
-              <label class="field-label">
-                <input
-                  v-model="form.seo_excluded"
-                  type="checkbox"
-                  data-testid="seo-excluded-toggle"
-                >
-                &nbsp;{{ $t('cms.excludeFromSearch') }}
-              </label>
-              <p
-                class="seo-effective"
-                data-testid="seo-effective-state"
-              >
-                {{ effectiveSeoState }}
-              </p>
-            </div>
+            <!-- SERP preview + the ten SEO fields, extracted to a reusable panel
+                 (S128) so the entity-page tab and this editor share one form. -->
+            <SeoFieldsPanel
+              v-model="seoModel"
+              :title="form.title"
+              :excerpt="form.excerpt"
+              :preview-url="serpUrl"
+              :effective-seo-state="effectiveSeoState"
+            />
 
             <!-- hreflang / translation-of picker -->
             <div class="field-group">
@@ -896,6 +773,8 @@ import CmsWidgetConfigFields, {
   type WidgetConfigModel,
 } from '../components/CmsWidgetConfigFields.vue';
 import TipTapEditor from '../components/TipTapEditor.vue';
+import SeoFieldsPanel, { type SeoFields } from '../components/SeoFieldsPanel.vue';
+import HtmlPreviewFrame from '../components/HtmlPreviewFrame.vue';
 import SearchableTermSelect from '../components/SearchableTermSelect.vue';
 import CustomFieldsEditor from '@/components/CustomFieldsEditor.vue';
 import { buildPostUrl, feUserBaseUrl as resolveFeUserBaseUrl } from '../utils/postUrl';
@@ -906,9 +785,7 @@ import {
   type CmsEditorPatch,
 } from '../editor/cmsEditorExtensionRegistry';
 
-const SERP_TITLE_MAX = 60;
-const SERP_DESC_MAX = 160;
-const POST_STATUSES = ['draft', 'pending', 'scheduled', 'published', 'private', 'trash'] as const;
+const POST_STATUSES =['draft', 'pending', 'scheduled', 'published', 'private', 'trash'] as const;
 
 // Per-status colours for the status selector (options + the closed control).
 const STATUS_STYLES: Record<string, { color: string; fontWeight?: string }> = {
@@ -1018,9 +895,6 @@ const form = ref<PostForm>({
   page_widgets: [],
 });
 
-const schemaJsonText = ref('');
-const schemaError = ref('');
-
 // ── Settings-panel collapse (more width for the editor) ─────────────────────
 const SIDEBAR_KEY = 'post_editor_sidebar_collapsed';
 const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_KEY) === '1');
@@ -1094,7 +968,7 @@ type ContentTab = (typeof CONTENT_TABS)[number];
 const contentTabs = computed<ContentTab[]>(() =>
   CONTENT_TABS.filter((tab) => showVisualTab.value || tab !== 'Visual'),
 );
-const postPreviewFrame = ref<HTMLIFrameElement | null>(null);
+const postPreviewFrame = ref<{ render: () => void } | null>(null);
 // The Visual editor keeps its own ProseMirror doc; content_html stays the
 // source of truth, so this is a working model, never persisted directly.
 const contentDoc = ref<Record<string, unknown>>({ type: 'doc', content: [] });
@@ -1103,13 +977,10 @@ const tiptapEditor = ref<{
   insertImageUrl: (url: string, alt?: string) => void;
 } | null>(null);
 
+// The Preview tab renders the authored HTML+CSS through HtmlPreviewFrame; force
+// a re-render on entering the tab (the frame is behind a v-show).
 function updatePostPreview() {
-  const frame = postPreviewFrame.value;
-  const doc = frame?.contentDocument;
-  if (!doc) return;
-  doc.open();
-  doc.write(`<!DOCTYPE html><html><head><style>img{max-width:100%;height:auto}${form.value.source_css}</style></head><body>${form.value.content_html}</body></html>`);
-  doc.close();
+  postPreviewFrame.value?.render();
 }
 
 watch(activeContentTab, async (tab) => {
@@ -1501,15 +1372,42 @@ function loadPageWidgets(
   }));
 }
 
-// ── SERP preview ────────────────────────────────────────────────────────
-const serpTitle = computed(() => (form.value.meta_title || form.value.title || '').trim());
+// ── SEO panel model (S128) ────────────────────────────────────────────────
+// Project the ten SEO fields out of `form` for the reusable SeoFieldsPanel and
+// write edits straight back — the panel owns the SERP preview + char warnings
+// and the schema-JSON textarea/parse. `form` stays the single source of truth.
+const seoModel = computed<SeoFields>({
+  get: () => ({
+    meta_title: form.value.meta_title,
+    meta_description: form.value.meta_description,
+    meta_keywords: form.value.meta_keywords,
+    og_title: form.value.og_title,
+    og_description: form.value.og_description,
+    og_image_url: form.value.og_image_url,
+    canonical_url: form.value.canonical_url,
+    robots: form.value.robots,
+    schema_json: form.value.schema_json,
+    seo_excluded: form.value.seo_excluded,
+  }),
+  set: (value) => {
+    form.value.meta_title = value.meta_title;
+    form.value.meta_description = value.meta_description;
+    form.value.meta_keywords = value.meta_keywords;
+    form.value.og_title = value.og_title;
+    form.value.og_description = value.og_description;
+    form.value.og_image_url = value.og_image_url;
+    form.value.canonical_url = value.canonical_url;
+    form.value.robots = value.robots;
+    form.value.schema_json = value.schema_json;
+    form.value.seo_excluded = value.seo_excluded;
+  },
+});
+
+// The SERP preview URL shown by the panel (fe-user origin + slug).
 const serpUrl = computed(() => {
   const slug = (form.value.slug || '').replace(/^\//, '');
   return `${window.location.origin.replace(/:8081$/, ':8080')}/${slug}`;
 });
-const serpDescription = computed(() => (form.value.meta_description || form.value.excerpt || '').trim());
-const titleTooLong = computed(() => serpTitle.value.length > SERP_TITLE_MAX);
-const descTooLong = computed(() => serpDescription.value.length > SERP_DESC_MAX);
 
 // ── Effective SEO (inheritance from excluded terms) ─────────────────────
 const excludedSelectedTerms = computed(() => {
@@ -1556,20 +1454,6 @@ function slugify(text: string): string {
 function autoSlug() {
   if (!form.value.slug && form.value.title) {
     form.value.slug = slugify(form.value.title);
-  }
-}
-
-function parseSchemaJson() {
-  schemaError.value = '';
-  const text = schemaJsonText.value.trim();
-  if (!text) {
-    form.value.schema_json = null;
-    return;
-  }
-  try {
-    form.value.schema_json = JSON.parse(text);
-  } catch {
-    schemaError.value = 'Invalid JSON';
   }
 }
 
@@ -1626,10 +1510,8 @@ function applyEditorPatch(patch: CmsEditorPatch): void {
     if (value === null || value === undefined) continue;
     if (AI_WRITABLE_FORM_KEYS.has(key as keyof PostForm)) {
       (form.value as Record<string, unknown>)[key] = value;
-      // Keep the SEO schema textarea in sync when schema_json is patched.
-      if (key === 'schema_json') {
-        schemaJsonText.value = JSON.stringify(value, null, 2);
-      }
+      // The SeoFieldsPanel re-derives its schema-JSON textarea from
+      // form.schema_json, so a patched value flows to the panel automatically.
       // Seed the Visual (TipTap) body editor with the AI HTML so it both
       // reflects the patch and does not echo a normalized (possibly empty)
       // value back over content_html. setFromHtml emits the verbatim HTML and
@@ -1805,7 +1687,6 @@ onMounted(async () => {
         page_widgets: loadPageWidgets(post.page_assignments),
       };
       hydrateServerIdentity(post);
-      schemaJsonText.value = post.schema_json ? JSON.stringify(post.schema_json, null, 2) : '';
       selectedTermIds.value = post.term_ids ?? [];
       // Re-hydrate the per-category pin toggles (S-archives).
       pinnedCategoryIds.value = post.pinned_term_ids ?? [];
@@ -1869,7 +1750,6 @@ defineExpose({
 .permalink-preview__mismatch { margin: 6px 0 0; font-size: 0.78rem; color: #b45309; font-weight: 600; }
 .field-input--multi { min-height: 90px; }
 textarea.field-input { resize: vertical; }
-.field-error { font-size: 0.8rem; color: #dc2626; margin-top: 2px; }
 
 .section-subtitle { font-size: 0.9rem; font-weight: 600; color: #374151; margin: 0 0 8px; }
 .type-fields { border-top: 1px solid #e5e7eb; padding-top: 12px; margin-bottom: 16px; }
@@ -1888,7 +1768,6 @@ textarea.field-input { resize: vertical; }
 .tabs { display: flex; gap: 0; margin-bottom: 0; border-bottom: 1px solid #e5e7eb; }
 .tab-btn { padding: 0.5rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-size: 0.9rem; color: #6b7280; }
 .tab-btn.active { color: #1d4ed8; border-bottom-color: #1d4ed8; font-weight: 600; }
-.post-preview-iframe { width: 100%; height: 420px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; }
 .post-editor__view-link { color: #3b82f6; font-size: 0.85rem; }
 
 .sidebar-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1rem; }
@@ -1913,16 +1792,6 @@ textarea.field-input { resize: vertical; }
 .seo-section { margin-top: 20px; }
 .seo-section__toggle { cursor: pointer; font-size: 0.9rem; font-weight: 600; color: #374151; padding: 10px 0; border-top: 1px solid #e5e7eb; }
 .seo-tab { padding-top: 1rem; }
-
-.serp-preview { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; margin-bottom: 16px; background: #fff; }
-.serp-preview__title { color: #1a0dab; font-size: 1.1rem; line-height: 1.3; }
-.serp-preview__url { color: #006621; font-size: 0.8rem; }
-.serp-preview__desc { color: #4d5156; font-size: 0.85rem; margin-top: 4px; }
-.serp-preview__counts { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.72rem; color: #6b7280; margin-top: 8px; }
-.serp-count--warn { color: #b45309; font-weight: 600; }
-.serp-warn { color: #b45309; font-weight: 600; }
-
-.seo-effective { font-size: 0.78rem; color: #6b7280; margin-top: 4px; }
 
 .btn { padding: 0.45rem 1rem; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; cursor: pointer; font-size: 0.875rem; }
 .btn--ghost { text-decoration: none; color: #374151; display: inline-flex; align-items: center; }

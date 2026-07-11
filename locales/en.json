@@ -143,6 +143,12 @@
       "showCategories": "Show categories",
       "showTags": "Show tags",
       "showReadingTime": "Show reading time"
-    }
+    },
+    "additionalBlocks": "Additional blocks",
+    "addBlock": "Add block",
+    "areaName": "Area name",
+    "blockContent": "Block HTML",
+    "saved": "Saved",
+    "saveFailed": "Save failed"
   }
 }
