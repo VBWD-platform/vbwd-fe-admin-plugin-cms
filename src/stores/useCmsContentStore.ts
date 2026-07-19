@@ -416,5 +416,17 @@ export const useCmsContentStore = defineStore('cms-content', {
       await api.delete(`/admin/cms/terms/${id}`);
       if (termType) await this.fetchTerms(termType);
     },
+
+    // ── Editor languages ─────────────────────────────────────────────────
+    // Resolved editor languages (configured order, unknown codes dropped,
+    // en/de/ru fallback) offered by the post/page editor and the content-list
+    // language filter. Driven by the cms plugin's ``enabled_languages`` config
+    // value (managed via the "Languages" settings tab).
+    async fetchLanguages(): Promise<Array<{ code: string; label: string }>> {
+      const res = await api.get<{ languages: Array<{ code: string; label: string }> }>(
+        '/admin/cms/languages',
+      );
+      return res.languages ?? [];
+    },
   },
 });

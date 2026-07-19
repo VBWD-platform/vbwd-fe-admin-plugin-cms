@@ -553,15 +553,14 @@
             <select
               v-model="form.language"
               class="field-input"
+              data-testid="post-language"
             >
-              <option value="en">
-                English
-              </option>
-              <option value="de">
-                Deutsch
-              </option>
-              <option value="ru">
-                Russian
+              <option
+                v-for="language in editorLanguages"
+                :key="language.code"
+                :value="language.code"
+              >
+                {{ language.label }}
               </option>
             </select>
           </div>
@@ -800,10 +799,35 @@ function statusStyle(status: string): Record<string, string> {
 }
 const CONTENT_TABS = ['Visual', 'HTML', 'CSS', 'Preview'] as const;
 
+// Editor languages fall back to en/de/ru whenever the configurable list cannot be
+// loaded, so the language selector never regresses to an empty dropdown.
+const FALLBACK_EDITOR_LANGUAGES: Array<{ code: string; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'ru', label: 'Russian' },
+];
+
 const route = useRoute();
 const router = useRouter();
 const store = useCmsContentStore();
 const authStore = useAuthStore();
+
+// Languages offered by the language selector, driven by the cms plugin's
+// configurable ``enabled_languages`` (loaded on mount via the store).
+const editorLanguages = ref<Array<{ code: string; label: string }>>([
+  ...FALLBACK_EDITOR_LANGUAGES,
+]);
+
+async function loadEditorLanguages(): Promise<void> {
+  try {
+    const languages = await store.fetchLanguages();
+    editorLanguages.value = languages.length
+      ? languages
+      : [...FALLBACK_EDITOR_LANGUAGES];
+  } catch {
+    editorLanguages.value = [...FALLBACK_EDITOR_LANGUAGES];
+  }
+}
 
 const canManage = computed(() => authStore.hasPermission('cms.manage'));
 
@@ -1629,6 +1653,7 @@ onMounted(async () => {
     store.fetchLayouts({ per_page: 100 }),
     store.fetchStyles({ per_page: 100 }),
     store.fetchWidgets({ per_page: 200 }),
+    loadEditorLanguages(),
   ]);
 
   // For a new post, honor the ?type= the list passed (post vs page); otherwise

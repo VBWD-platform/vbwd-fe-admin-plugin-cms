@@ -451,4 +451,67 @@ describe('CmsContentList.vue (shared list)', () => {
     const { wrapper } = await mountList('page', PAGES);
     expect(wrapper.findComponent(IecStub).props('entityKey')).toBe('cms_posts');
   });
+
+  // ── Configurable language filter (driven by the "Languages" settings tab) ──
+  describe('configurable language filter', () => {
+    async function mountWithLanguages(
+      languages: Array<{ code: string; label: string }> | 'error',
+    ): Promise<VueWrapper> {
+      (api.get as any).mockImplementation((url: string, opts?: any) => {
+        if (url === '/admin/cms/posts') return Promise.resolve(POSTS);
+        if (url === '/admin/cms/terms') {
+          const type = opts?.params?.type;
+          if (type === 'category') return Promise.resolve(CATEGORIES);
+          if (type === 'tag') return Promise.resolve(TAGS);
+          return Promise.resolve([]);
+        }
+        if (url === '/admin/cms/layouts') return Promise.resolve(LAYOUTS);
+        if (url === '/admin/cms/languages') {
+          return languages === 'error'
+            ? Promise.reject(new Error('boom'))
+            : Promise.resolve({ languages });
+        }
+        return Promise.resolve({});
+      });
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [
+          { path: '/admin/cms/posts', name: 'cms-posts', component: { template: '<div />' } },
+          { path: '/admin/cms/pages', name: 'cms-admin-pages', component: { template: '<div />' } },
+          { path: '/admin/cms/posts/new', name: 'cms-post-new', component: { template: '<div />' } },
+          { path: '/admin/cms/posts/:id/edit', name: 'cms-post-edit', component: { template: '<div />' } },
+        ],
+      });
+      router.push({ name: 'cms-posts' });
+      await router.isReady();
+      const wrapper = mount(CmsContentList, {
+        props: { type: 'post' },
+        global: { plugins: [i18n, router], stubs: { ImportExportControls: IecStub } },
+      });
+      await flushPromises();
+      return wrapper;
+    }
+
+    it('renders the "All languages" option plus the configured languages (not the hardcoded ru)', async () => {
+      const wrapper = await mountWithLanguages([
+        { code: 'en', label: 'English' },
+        { code: 'fr', label: 'Français' },
+      ]);
+      const options = wrapper.find('[data-testid="filter-language"]').findAll('option');
+      // Leading empty "All languages" option is preserved.
+      expect(options[0].attributes('value')).toBe('');
+      const values = options.map((option) => option.attributes('value'));
+      expect(values).toEqual(['', 'en', 'fr']);
+      expect(values).not.toContain('ru');
+    });
+
+    it('falls back to en/de/ru when the languages fetch fails', async () => {
+      const wrapper = await mountWithLanguages('error');
+      const values = wrapper
+        .find('[data-testid="filter-language"]')
+        .findAll('option')
+        .map((option) => option.attributes('value'));
+      expect(values).toEqual(['', 'en', 'de', 'ru']);
+    });
+  });
 });

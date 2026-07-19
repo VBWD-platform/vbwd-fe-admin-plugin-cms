@@ -63,14 +63,12 @@
         <option value="">
           {{ $t('cms.allLanguages', 'All languages') }}
         </option>
-        <option value="en">
-          English
-        </option>
-        <option value="de">
-          Deutsch
-        </option>
-        <option value="ru">
-          Russian
+        <option
+          v-for="language in filterLanguages"
+          :key="language.code"
+          :value="language.code"
+        >
+          {{ language.label }}
         </option>
       </select>
       <select
@@ -444,6 +442,14 @@ const POST_STATUSES = ['draft', 'pending', 'scheduled', 'published', 'private', 
 const PER_PAGE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
+// Language-filter options fall back to en/de/ru whenever the configurable list
+// cannot be loaded, so the filter never regresses to an empty dropdown.
+const FALLBACK_FILTER_LANGUAGES: Array<{ code: string; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'ru', label: 'Russian' },
+];
+
 const props = defineProps<{ type: 'post' | 'page' }>();
 
 const router = useRouter();
@@ -468,6 +474,23 @@ const sortDir = ref<'asc' | 'desc'>('desc');
 // Term name lookups (posts only) — resolves term_ids → category / tag names.
 const categoryTerms = ref<CmsTerm[]>([]);
 const tagTerms = ref<CmsTerm[]>([]);
+
+// Languages offered by the language filter, driven by the cms plugin's
+// configurable ``enabled_languages`` (loaded on mount via the store).
+const filterLanguages = ref<Array<{ code: string; label: string }>>([
+  ...FALLBACK_FILTER_LANGUAGES,
+]);
+
+async function loadFilterLanguages(): Promise<void> {
+  try {
+    const languages = await store.fetchLanguages();
+    filterLanguages.value = languages.length
+      ? languages
+      : [...FALLBACK_FILTER_LANGUAGES];
+  } catch {
+    filterLanguages.value = [...FALLBACK_FILTER_LANGUAGES];
+  }
+}
 
 let searchTimer: ReturnType<typeof setTimeout>;
 
@@ -640,6 +663,7 @@ onMounted(async () => {
   }
   store.fetchLayouts({ per_page: 100 });
   store.fetchStyles({ per_page: 100 });
+  void loadFilterLanguages();
   void loadManifest();
   load();
 });

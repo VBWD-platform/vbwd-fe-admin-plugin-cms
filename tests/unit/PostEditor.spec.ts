@@ -1380,4 +1380,63 @@ describe('PostEditor.vue', () => {
       ).toBeUndefined();
     });
   });
+
+  // ── Configurable editor languages (driven by the "Languages" settings tab) ─
+  describe('configurable editor languages', () => {
+    // Re-prime api.get so the base fixtures resolve AND /admin/cms/languages
+    // returns the configured subset; unknown routes fall back to {}.
+    function primeApiWithLanguages(languages: Array<{ code: string; label: string }>) {
+      (api.get as any).mockImplementation((url: string, opts?: any) => {
+        if (url === '/admin/cms/post-types') return Promise.resolve(POST_TYPES);
+        if (url === '/admin/cms/term-types') return Promise.resolve(TERM_TYPES);
+        if (url === '/admin/cms/layouts') return Promise.resolve(LAYOUTS);
+        if (url === '/admin/cms/styles') return Promise.resolve(STYLES);
+        if (url === '/admin/cms/widgets') return Promise.resolve(WIDGETS);
+        if (url === '/admin/cms/languages') return Promise.resolve({ languages });
+        if (url === '/admin/cms/terms') {
+          const type = opts?.params?.type;
+          if (type === 'category') return Promise.resolve(CATEGORIES);
+          if (type === 'tag') return Promise.resolve(TAGS);
+          return Promise.resolve([]);
+        }
+        return Promise.resolve({});
+      });
+    }
+
+    it('renders the language options from the configured list (not the hardcoded en/de/ru)', async () => {
+      vi.clearAllMocks();
+      primeApiWithLanguages([
+        { code: 'en', label: 'English' },
+        { code: 'fr', label: 'Français' },
+      ]);
+      const { wrapper } = await mountEditor();
+      const options = wrapper.find('[data-testid="post-language"]').findAll('option');
+      expect(options.map((option) => option.attributes('value'))).toEqual(['en', 'fr']);
+      expect(options.map((option) => option.text())).toEqual(['English', 'Français']);
+      // The previously-hardcoded Russian option is gone.
+      expect(options.map((option) => option.attributes('value'))).not.toContain('ru');
+    });
+
+    it('falls back to en/de/ru when the languages fetch fails', async () => {
+      vi.clearAllMocks();
+      (api.get as any).mockImplementation((url: string, opts?: any) => {
+        if (url === '/admin/cms/post-types') return Promise.resolve(POST_TYPES);
+        if (url === '/admin/cms/term-types') return Promise.resolve(TERM_TYPES);
+        if (url === '/admin/cms/layouts') return Promise.resolve(LAYOUTS);
+        if (url === '/admin/cms/styles') return Promise.resolve(STYLES);
+        if (url === '/admin/cms/widgets') return Promise.resolve(WIDGETS);
+        if (url === '/admin/cms/languages') return Promise.reject(new Error('boom'));
+        if (url === '/admin/cms/terms') {
+          const type = opts?.params?.type;
+          if (type === 'category') return Promise.resolve(CATEGORIES);
+          if (type === 'tag') return Promise.resolve(TAGS);
+          return Promise.resolve([]);
+        }
+        return Promise.resolve({});
+      });
+      const { wrapper } = await mountEditor();
+      const options = wrapper.find('[data-testid="post-language"]').findAll('option');
+      expect(options.map((option) => option.attributes('value'))).toEqual(['en', 'de', 'ru']);
+    });
+  });
 });
