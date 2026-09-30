@@ -143,8 +143,12 @@
         Robots.txt
       </h2>
       <p class="cms-seo__hint">
-        Edit the served <code>robots.txt</code>. Empty = the default robots
-        template. <code>seo.mode=off</code> always forces
+        Edit the served <code>robots.txt</code>. Empty = the default, which
+        keeps all CMS content crawlable: <code>Allow: /</code> and
+        <code>Allow: /api/v1/cms/</code>, disallowing only
+        <code>/api/</code>, <code>/admin/</code>, <code>/dashboard$</code> and
+        <code>/dashboard/</code>, plus the <code>Sitemap:</code> line.
+        <code>seo.mode=off</code> always forces
         <code>Disallow: /</code> regardless of this content.
       </p>
 
